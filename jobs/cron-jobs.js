@@ -1,7 +1,7 @@
 const nodeCron = require("node-cron");
 const axios = require("axios").default;
 
-const allGamesRequest = nodeCron.schedule("* * */4 * * *", function jobYouNeedToExecute() {
+const allGamesRequest = nodeCron.schedule("0 */4 * * *", function jobYouNeedToExecute() {
     console.log("all game request executed");
     var currentDate = new Date();
     console.log(currentDate.getUTCFullYear(), currentDate.getUTCMonth() + 1, currentDate.getUTCDate());
