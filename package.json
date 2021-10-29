@@ -6,6 +6,7 @@
     "start": "node ./bin/www"
   },
   "dependencies": {
+    "@azure/cosmos": "^3.14.1",
     "axios": "^0.24.0",
     "bull": "^3.29.3",
     "cookie-parser": "~1.4.4",
