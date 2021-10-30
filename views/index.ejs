@@ -23,11 +23,24 @@
   integrity="sha256-/xUj+3OJU5yExlq6GSYGSHk7tPXikynS7ogEvDej/m4=" crossorigin="anonymous"></script>
 <script type="text/javascript" src="/javascripts/jsonview.bundle.js"></script>
 <script>
+  document.querySelector('#jsondata').innerHTML = '';
   var jsondata = document.getElementById('jsondata').getAttribute('data-attr');
-  console.log(jsondata);
-  const tree = JsonView.createTree(jsondata);
-  JsonView.render(tree, document.querySelector('#jsondata'));
-  JsonView.expandChildren(tree);
+  var gamesToday = JSON.parse(jsondata);
+  var allGames = gamesToday.games;
+  for (let i = 0; i < allGames.length; i++) {
+    var gameLine = allGames[i];
+    var league = gameLine.league.name;
+    var country = gameLine.league.country;
+    var logo = gameLine.league.logo;
+    var bet = gameLine.bookmakers[0].bets[0].name;
+    var odds_home = gameLine.bookmakers[0].bets[0].values[0].odd;
+    var odds_drew = gameLine.bookmakers[0].bets[0].values[1].odd;
+    var odds_away = gameLine.bookmakers[0].bets[0].values[2].odd;
+    document.querySelector('#jsondata').innerHTML = document.querySelector('#jsondata').innerHTML + `<p>${league}-${country}-${bet}: home ${odds_home} | drew ${odds_drew} | away ${odds_away}</p>`;
+  }
+  // const tree = JsonView.createTree(jsondata);
+  // JsonView.render(tree, document.querySelector('#jsondata'));
+  // JsonView.expandChildren(tree);
 </script>
 <script>
   function getData() {

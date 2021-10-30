@@ -3,25 +3,25 @@ const axios = require("axios").default;
 var router = express.Router();
 
 /* GET home page. */
-router.get('/getGames', function (req, res, next) {
+router.get('/getGames', async function (req, res, next) {
     //console.log(req);
     var currentDate = new Date();
     var currentDateString = `${currentDate.getFullYear()}-${currentDate.getMonth() + 1}-${currentDate.getDate()}`;
-    var options = {
-        method: 'GET',
-        url: 'https://api-football-v1.p.rapidapi.com/v3/odds',
-        params: { date: currentDateString, timezone: 'America/Los_Angeles' },
-        headers: {
-            'x-rapidapi-host': 'api-football-v1.p.rapidapi.com',
-            'x-rapidapi-key': '28fc80e178mshdff1cc6efb6539cp119f94jsn1a2811635bf8'
-        }
+    const CosmosClient = require("@azure/cosmos").CosmosClient;
+    const config = {
+        endpoint: "https://yolofootball-database.documents.azure.com:443/",
+        key: "hOicNBuPcYclHNG3UHZA9zGKhXp9zrTeoxbagVWBWRql4nXsEbOykJkyxfKMA2cEOGuwvMAMIES8Ssg81bppFA==",
+        databaseId: "yolofootball",
+        containerId: "games"
     };
-    axios.request(options).then(function (response) {
-        global.testgame = response.data;
-        res.send(response.data);
-    }).catch(function (error) {
-        console.error(error);
-    });
+    console.log('connect to cosmosdb')
+    const client = new CosmosClient({ endpoint: config.endpoint, key: config.key });
+    const database = client.database(config.databaseId);
+    const container = database.container(config.containerId);
+    var dates = await container.items.query(`SELECT * from c WHERE c.date = '${currentDate.getFullYear()}-${currentDate.getMonth() + 1}-${currentDate.getDate()}'`).fetchAll();
+    var gamesData = dates.resources[0];
+    global.testgame = gamesData;
+    res.send(gamesData);
 });
 
 module.exports = router;
