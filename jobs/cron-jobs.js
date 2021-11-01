@@ -100,10 +100,27 @@ async function prepareAllGamesData(startPage, endPage) {
 }
 
 function buildAllGamesData(originalCall, resultsArray) {
+    // filter works
+    originalCall.games = filterGames(originalCall.games);
     for (let i = 0; i < resultsArray.length; i++) {
-        originalCall.games = originalCall.games.concat(resultsArray[i].data.response);
+        originalCall.games = originalCall.games.concat(filterGames(resultsArray[i].data.response));
     }
     return originalCall;
+}
+
+function filterGames(games) {
+    var filteredGames = games.filter((game) => {
+        var gameOddsProviders = game.bookmakers;
+        game.bookmakers = gameOddsProviders.filter((provider) => {
+            return filterSpecificOddsProvider(6, provider);
+        });
+        return game.bookmakers.length === 1;
+    });
+    return filteredGames;
+}
+
+function filterSpecificOddsProvider(id, data) {
+    return data.id === id;
 }
 
 exports.start = start;
