@@ -1,12 +1,10 @@
 var express = require('express');
-const axios = require("axios").default;
 var router = express.Router();
 
 /* GET home page. */
 router.get('/getGames', async function (req, res, next) {
     //console.log(req);
     var currentDate = new Date();
-    var currentDateString = `${currentDate.getFullYear()}-${currentDate.getMonth() + 1}-${currentDate.getDate()}`;
     const CosmosClient = require("@azure/cosmos").CosmosClient;
     const config = {
         endpoint: "https://yolofootball-database.documents.azure.com:443/",
