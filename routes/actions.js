@@ -38,7 +38,7 @@ router.get('/getFixtures', async function (req, res, next) {
     const container = database.container(config.containerId);
     var dates = await container.items.query(`SELECT * from c WHERE c.date = '${getDateString()}'`).fetchAll();
     var gamesData = dates.resources[0];
-    global.testgame = gamesData;
+    global.testfixtures = gamesData;
     res.send(gamesData);
 });
 
