@@ -12,6 +12,7 @@ var usersRouter = require('./routes/users');
 var actionsRouter = require('./routes/actions');
 
 global.testgame = { test: 'test' };
+global.testfixtures = { test: 'fixtures' };
 
 var app = express();
 

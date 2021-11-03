@@ -15,7 +15,10 @@
   </h1>
   <p>Welcome to <%= title %>
       <button id="getGames" onclick="getData()">get games data</button>
+      <button id="getGames" onclick="getFData()">get fxitures data</button>
       <div id="jsondata" data-attr="<%= game %>">
+      </div>
+      <div id="fixtures" data-attr="<%= fixtures%>">
       </div>
   </p>
 </body>
@@ -43,9 +46,38 @@
   // JsonView.expandChildren(tree);
 </script>
 <script>
+  document.querySelector('#fixtures').innerHTML = '';
+  var jsondata = document.getElementById('fixtures').getAttribute('data-attr');
+  var gamesToday = JSON.parse(jsondata);
+  var allFixtures = gamesToday.fixtures;
+  var fixturesString = ``;
+  for (let i = 0; i < allFixtures.length; i++) {
+    let fDate = allFixtures[i];
+    let fixture = `  <div class="container">
+        <h4><img src="${fDate.league.logo}" style="height:20px; width:20px;"/><b>${fDate.league.name}</b> --- <span>${fDate.fixture.status.long}<span></h4>
+        <p>${fDate.teams.home.name} ${fDate.goals.home ?? ' '} - ${fDate.goals.away ?? ' '} ${fDate.teams.away.name}</p>
+    </div>`;
+    fixturesString = fixturesString + fixture;
+  }
+  document.querySelector('#fixtures').innerHTML = fixturesString;
+  // const tree = JsonView.createTree(jsondata);
+  // JsonView.render(tree, document.querySelector('#jsondata'));
+  // JsonView.expandChildren(tree);
+</script>
+<script>
   function getData() {
     $.ajax({
       url: "/actions/getGames"
+    }).done(function (res, error) {
+      console.log(res);
+      if (!error) {
+        console.log(res);
+      }
+    });
+  }
+  function getFData() {
+    $.ajax({
+      url: "/actions/getFixtures"
     }).done(function (res, error) {
       console.log(res);
       if (!error) {
