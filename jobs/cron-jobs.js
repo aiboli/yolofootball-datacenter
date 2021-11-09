@@ -13,7 +13,7 @@ const database = client.database(config.databaseId);
 const container = database.container(config.containerId);
 const fixturesContainer = database.container('fixtures');
 
-const allGamesRequest = nodeCron.schedule("1 */6 * * *", async function jobYouNeedToExecute() {
+const allGamesRequest = nodeCron.schedule("1 */7 * * *", async function jobYouNeedToExecute() {
     console.log("all game request executed");
     console.log(getDateString());
     // check if we already got today's game
@@ -31,13 +31,19 @@ const allGamesRequest = nodeCron.schedule("1 */6 * * *", async function jobYouNe
                 'x-rapidapi-key': '28fc80e178mshdff1cc6efb6539cp119f94jsn1a2811635bf8'
             }
         };
-        var response = await axios.request(options);
+        var response;
+        try {
+            response = await axios.request(options);
+        } catch (e) {
+            console.log(e);
+        }
+        console.log(response);
         global.testgame = response.data;
         let gamedate = response.data.parameters.date;
         let totalPage = response.data.paging.total;
         let objectDef = {
             date: gamedate,
-            fixtures: response.data.response
+            games: response.data.response
         };
         let restPreparedData = await prepareAllGamesData(1, totalPage);
         let finalData = buildAllGamesData(objectDef, restPreparedData);
@@ -110,6 +116,7 @@ async function prepareAllGamesData(startPage, endPage) {
         pageArray.push(i);
     }
     const promises = pageArray.map((page) => {
+        console.log(page);
         const thisOption = {
             method: 'GET',
             url: 'https://api-football-v1.p.rapidapi.com/v3/odds',
@@ -121,8 +128,13 @@ async function prepareAllGamesData(startPage, endPage) {
         }
         return axios.request(thisOption);
     });
-    const results = await getInSeries(promises);
-    return results;
+    try {
+        const results = await getInSeries(promises);
+        return results;
+    } catch (e) {
+        console.log(e);
+    }
+    return null;
 }
 
 function buildAllGamesData(originalCall, resultsArray) {
