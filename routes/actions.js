@@ -4,7 +4,6 @@ var router = express.Router();
 /* GET home page. */
 router.get('/getGames', async function (req, res, next) {
     //console.log(req);
-    var currentDate = new Date();
     const CosmosClient = require("@azure/cosmos").CosmosClient;
     const config = {
         endpoint: "https://yolofootball-database.documents.azure.com:443/",
@@ -24,7 +23,6 @@ router.get('/getGames', async function (req, res, next) {
 
 router.get('/getFixtures', async function (req, res, next) {
     //console.log(req);
-    var currentDate = new Date();
     const CosmosClient = require("@azure/cosmos").CosmosClient;
     const config = {
         endpoint: "https://yolofootball-database.documents.azure.com:443/",
@@ -36,8 +34,14 @@ router.get('/getFixtures', async function (req, res, next) {
     const client = new CosmosClient({ endpoint: config.endpoint, key: config.key });
     const database = client.database(config.databaseId);
     const container = database.container(config.containerId);
-    var dates = await container.items.query(`SELECT * from c WHERE c.date = '${getDateString()}'`).fetchAll();
+    let dates;
+    if (req.query.date) {
+        dates = await container.items.query(`SELECT * from c WHERE c.date = '${req.query.date}'`).fetchAll();
+    } else {
+        dates = await container.items.query(`SELECT * from c WHERE c.date = '${getDateString()}'`).fetchAll();
+    }
     var gamesData = dates.resources[0];
+    console.log(dates);
     global.testfixtures = gamesData;
     res.send(gamesData);
 });
