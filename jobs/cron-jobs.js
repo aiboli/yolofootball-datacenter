@@ -13,7 +13,8 @@ const database = client.database(config.databaseId);
 const container = database.container(config.containerId);
 const fixturesContainer = database.container('fixtures');
 
-const allGamesRequest = nodeCron.schedule("1 23 * * *", async function jobYouNeedToExecute() {
+// change to every 2 hours running the cron job, but now only for fixtures
+const allGamesRequest = nodeCron.schedule("* */2 * * *", async function jobYouNeedToExecute() {
     console.log("all game request executed");
     console.log(getDateString());
     // check if we already got today's game
@@ -80,7 +81,29 @@ const allGamesRequest = nodeCron.schedule("1 23 * * *", async function jobYouNee
         var fixturesRes = await fixturesContainer.items.create(fixturesObject);
         console.log('save fixturesContainer success!');
         console.log(fixturesRes);
-    }
+    } else if (fixturesDates.resources.length === 1) {
+        console.log('updating the fixture data');
+        var fixturesOptions = {
+            method: 'GET',
+            url: 'https://api-football-v1.p.rapidapi.com/v3/fixtures',
+            params: { date: getDateString(), timezone: 'America/Los_Angeles' },
+            headers: {
+                'x-rapidapi-host': 'api-football-v1.p.rapidapi.com',
+                'x-rapidapi-key': '28fc80e178mshdff1cc6efb6539cp119f94jsn1a2811635bf8'
+            }
+        };
+        var fixturesResponse = await axios.request(fixturesOptions);
+        var fixturesObject = {
+            date: fixturesResponse.data.parameters.date,
+            fixtures: fixturesResponse.data.response
+        };
+        global.testfixtures = fixturesObject;
+        console.log('store data in database');
+        console.log('updating new fixturesContainer data');
+        var fixturesRes = await fixturesContainer.items({ date: fixturesResponse.data.parameters.date }).replace(fixturesObject);
+        console.log('updating fixturesContainer success!');
+        console.log(fixturesRes);
+    };
 });
 
 // const fixturesDetailsRequest = nodeCron.schedule("0 */2 * * *", async function jobYouNeedToExecute() {
@@ -115,8 +138,8 @@ const allGamesRequest = nodeCron.schedule("1 23 * * *", async function jobYouNee
 //             var fixturesRes = await fixturesContainer.items.create(fixturesObject);
 //             console.log('save fixturesContainer success!');
 //             console.log(fixturesRes);
-//         } else {
-
+//         } else if (fixturesDates.resources.length === 1) {
+//             console.log(fixturesDates.resources);
 //         }
 //     }
 // });
