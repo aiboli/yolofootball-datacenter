@@ -4,12 +4,14 @@ var path = require('path');
 var cookieParser = require('cookie-parser');
 var logger = require('morgan');
 var sassMiddleware = require('node-sass-middleware');
+var bodyParser = require('body-parser');
 // const CosmosClient = require("@azure/cosmos").CosmosClient;
 var JobsManager = require('./jobs/cron-jobs');
 
 var indexRouter = require('./routes/index');
 var usersRouter = require('./routes/users');
 var actionsRouter = require('./routes/actions');
+var orderRouter = require('./routes/order');
 
 global.testgame = { test: 'test' };
 global.testfixtures = { test: 'fixtures' };
@@ -23,6 +25,10 @@ app.set('view engine', 'ejs');
 app.use(logger('dev'));
 app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
+app.use(bodyParser.json());
+app.use(bodyParser.urlencoded({
+  extended: true
+}));
 app.use(cookieParser());
 app.use(sassMiddleware({
   src: path.join(__dirname, 'public'),
@@ -35,6 +41,7 @@ app.use(express.static(path.join(__dirname, 'public')));
 app.use('/', indexRouter);
 app.use('/users', usersRouter);
 app.use('/actions', actionsRouter);
+app.use('/order', orderRouter);
 
 // const config = {
 //   endpoint: "https://yolofootball-database.documents.azure.com:443/",
