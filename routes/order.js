@@ -39,21 +39,21 @@ router.post('/', async function (req, res, next) {
     console.log(postData);
     let orderToCreate = {
         "orderdate": new Date().getTime(), // order placed date
-        "fixture_id": postData.fixture_id, // the fixture id that related to this order
+        "fixture_id": parseInt(postData.fixture_id), // the fixture id that related to this order
         "fixtures_ids": [], // if multiple fixtures added to this order
-        "bet_result": postData.bet_result, // bet result: 0 is host win, 1 is draw, 2 is away win
-        "odd_rate": postData.odd_rate, // rate
-        "odd_mount": postData.odd_mount, // the total money that user bet
-        "win_return": postData.win_return, // returns the money if wins
+        "bet_result": parseInt(postData.bet_result), // bet result: 0 is host win, 1 is draw, 2 is away win
+        "odd_rate": parseFloat(postData.odd_rate), // rate
+        "odd_mount": parseFloat(postData.odd_mount), // the total money that user bet
+        "win_return": parseFloat(postData.win_return), // returns the money if wins
         "is_win": false, // is user win this order
         "state": "pending", // order status: pending, canceled, completed
-        "fixture_state": postData.fixture_state, // fixture's state: notstarted, canceled, finished
+        "fixture_state": parseInt(postData.fixture_state), // fixture's state: notstarted, canceled, finished
         "fixture_states": [],
         "actual_return": 0, // the user actual mount get
     }
     var orderCreateResult = await container.items.create(orderToCreate);
-    var orderData = orderCreateResult.resources;
-    res.status(200).send(orderData);
+    var orderData = orderCreateResult.resource;
+    return res.status(200).send(orderData);
 });
 
 // update order

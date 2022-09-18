@@ -95,9 +95,6 @@
 </script>
 <script>
   function createOrder(obj) {
-    alert(obj);
-    console.log(obj.value);
-    console.log(obj.getAttribute("win"));
     let orderToCreate = {
       "fixture_id": Number(obj.getAttribute("fixture")), // the fixture id that related to this order
       "fixtures_ids": [], // if multiple fixtures added to this order
@@ -115,14 +112,10 @@
     $.ajax({
       type: "POST",
       url: "/order",
-      dataType: "jsonp",
+      dataType: "json",
       data: orderToCreate
     }).done(function (res, error) {
-      alert('seuccess');
       console.log(res);
-      if (!error) {
-        console.log(res);
-      }
     });
   }
 </script>
