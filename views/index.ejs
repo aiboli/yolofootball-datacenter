@@ -16,6 +16,9 @@
   <p>Welcome to <%= title %>
       <button id="getGames" onclick="getData()">get games data</button>
       <button id="getGames" onclick="getFData()">get fxitures data</button>
+      <div>
+        <h4>Order Generator</h4>
+      </div>
       <div id="jsondata" data-attr="<%= game %>">
       </div>
       <div id="fixtures" data-attr="<%= fixtures%>">
@@ -40,6 +43,10 @@
     var odds_drew = gameLine.bookmakers[0].bets[0].values[1].odd;
     var odds_away = gameLine.bookmakers[0].bets[0].values[2].odd;
     document.querySelector('#jsondata').innerHTML = document.querySelector('#jsondata').innerHTML + `<p>${league}-${country}-${bet}: home ${odds_home} | drew ${odds_drew} | away ${odds_away}</p>`;
+    document.querySelector('#jsondata').innerHTML = document.querySelector('#jsondata').innerHTML + `
+    <button value="${odds_home}" fixture="${gameLine.fixture.id}" win="0" mount="10000" onClick="createOrder(this)">${odds_home}</button>
+    <button value="${odds_drew}" fixture="${gameLine.fixture.id}" win="1" mount="10000" onClick="createOrder(this)">${odds_drew}</button>
+    <button value="${odds_away}" fixture="${gameLine.fixture.id}" win="2" mount="10000" onClick="createOrder(this)">${odds_away}</button>`
   }
   // const tree = JsonView.createTree(jsondata);
   // JsonView.render(tree, document.querySelector('#jsondata'));
@@ -67,7 +74,7 @@
 <script>
   function getData() {
     $.ajax({
-      url: "/actions/getGames"
+      url: "/actions/getGames?date=2022-08-19"
     }).done(function (res, error) {
       console.log(res);
       if (!error) {
@@ -77,8 +84,41 @@
   }
   function getFData() {
     $.ajax({
-      url: "/actions/getFixtures"
+      url: "/actions/getFixtures?date=2022-08-19"
     }).done(function (res, error) {
+      console.log(res);
+      if (!error) {
+        console.log(res);
+      }
+    });
+  }
+</script>
+<script>
+  function createOrder(obj) {
+    alert(obj);
+    console.log(obj.value);
+    console.log(obj.getAttribute("win"));
+    let orderToCreate = {
+      "fixture_id": Number(obj.getAttribute("fixture")), // the fixture id that related to this order
+      "fixtures_ids": [], // if multiple fixtures added to this order
+      "bet_result": Number(obj.getAttribute("win")), // bet result: 0 is host win, 1 is draw, 2 is away win
+      "odd_rate": Number(obj.value), // rate
+      "odd_mount": Number(obj.getAttribute("mount")), // the total money that user bet
+      "win_return": Number(obj.getAttribute("mount") * obj.value), // returns the money if wins
+      "is_win": false, // is user win this order
+      "state": "pending", // order status: pending, canceled, completed
+      "fixture_state": "notstarted", // fixture's state: notstarted, canceled, finished
+      "fixture_states": [],
+      "actual_return": 0, // the user actual mount get
+    }
+    alert('send request to create order');
+    $.ajax({
+      type: "POST",
+      url: "/order",
+      dataType: "jsonp",
+      data: orderToCreate
+    }).done(function (res, error) {
+      alert('seuccess');
       console.log(res);
       if (!error) {
         console.log(res);

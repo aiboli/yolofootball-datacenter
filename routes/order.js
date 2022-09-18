@@ -53,6 +53,56 @@ router.post('/', async function (req, res, next) {
     }
     var orderCreateResult = await container.items.create(orderToCreate);
     var orderData = orderCreateResult.resources;
-    res.send(orderData);
+    res.status(200).send(orderData);
 });
+
+// update order
+router.put('/:orderId', async function (req, res, next) {
+    const CosmosClient = require("@azure/cosmos").CosmosClient;
+    const config = {
+        endpoint: "https://yolofootball-database.documents.azure.com:443/",
+        key: "hOicNBuPcYclHNG3UHZA9zGKhXp9zrTeoxbagVWBWRql4nXsEbOykJkyxfKMA2cEOGuwvMAMIES8Ssg81bppFA==",
+        databaseId: "yolofootball",
+        containerId: "orders"
+    };
+    console.log('connect to cosmosdb');
+    const client = new CosmosClient({ endpoint: config.endpoint, key: config.key });
+    const database = client.database(config.databaseId);
+    const container = database.container(config.containerId);
+
+    const orderId = req.params && req.params.orderId;
+    const postData = req.body;
+
+    if (!orderId) {
+        throw Error('no orderId');
+    }
+
+    const orderResponse = await container.item(orderId, orderId).read();
+    let currentOrder = orderResponse.resource;
+    console.log(currentOrder);
+    if (!currentOrder) {
+        // throw Error('no order exists');
+        return res.send(404);
+    }
+    // 2 conditions: to cancel or complete order
+    if (postData && postData.state) {
+        if (postData.state == 'canceled') {
+            currentOrder.state = postData.state;
+        } else if (postData.state == 'completed') {
+            if (postData.returned_mount !== 0 && !postData.returned_mount) {
+                throw new Error('no returned mount');
+            }
+            if (!postData.win_result) {
+                throw new Error('no returned mount');
+            }
+            currentOrder.state = postData.state;
+            currentOrder.is_win = postData.win_result;
+            currentOrder.actual_return = postData.returned_mount;
+        }
+    }
+    var orderCreateResult = await container.item(orderId, orderId).replace(currentOrder);
+    var orderData = orderCreateResult.resource;
+    return res.send(orderData);
+});
+
 module.exports = router;

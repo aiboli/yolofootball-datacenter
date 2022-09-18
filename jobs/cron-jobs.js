@@ -14,7 +14,7 @@ const container = database.container(config.containerId);
 const fixturesContainer = database.container('fixtures');
 
 // change to every 2 hours running the cron job, but now only for fixtures
-const allGamesRequest = nodeCron.schedule("* */2 * * *", async function jobYouNeedToExecute() {
+const allGamesRequest = nodeCron.schedule("59 */2 * * *", async function jobYouNeedToExecute() {
     console.log("all game request executed");
     console.log(getDateString());
     // check if we already got today's game

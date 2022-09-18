@@ -15,7 +15,12 @@ router.get('/getGames', async function (req, res, next) {
     const client = new CosmosClient({ endpoint: config.endpoint, key: config.key });
     const database = client.database(config.databaseId);
     const container = database.container(config.containerId);
-    var dates = await container.items.query(`SELECT * from c WHERE c.date = '${getDateString()}'`).fetchAll();
+    let dates;
+    if (req.query.date) {
+        dates = await container.items.query(`SELECT * from c WHERE c.date = '${req.query.date}'`).fetchAll();
+    } else {
+        dates = await container.items.query(`SELECT * from c WHERE c.date = '${getDateString()}'`).fetchAll();
+    }
     var gamesData = dates.resources[0];
     global.testgame = gamesData;
     res.send(gamesData);
