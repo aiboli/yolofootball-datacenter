@@ -44,9 +44,9 @@
     var odds_away = gameLine.bookmakers[0].bets[0].values[2].odd;
     document.querySelector('#jsondata').innerHTML = document.querySelector('#jsondata').innerHTML + `<p>${league}-${country}-${bet}: home ${odds_home} | drew ${odds_drew} | away ${odds_away}</p>`;
     document.querySelector('#jsondata').innerHTML = document.querySelector('#jsondata').innerHTML + `
-    <button value="${odds_home}" fixture="${gameLine.fixture.id}" win="0" mount="10000" onClick="createOrder(this)">${odds_home}</button>
-    <button value="${odds_drew}" fixture="${gameLine.fixture.id}" win="1" mount="10000" onClick="createOrder(this)">${odds_drew}</button>
-    <button value="${odds_away}" fixture="${gameLine.fixture.id}" win="2" mount="10000" onClick="createOrder(this)">${odds_away}</button>`
+    <button value="${odds_home}" fixture="${gameLine.fixture.id}" win="0" mount="100" onClick="createOrder(this)">${odds_home}</button>
+    <button value="${odds_drew}" fixture="${gameLine.fixture.id}" win="1" mount="100" onClick="createOrder(this)">${odds_drew}</button>
+    <button value="${odds_away}" fixture="${gameLine.fixture.id}" win="2" mount="100" onClick="createOrder(this)">${odds_away}</button>`
   }
   // const tree = JsonView.createTree(jsondata);
   // JsonView.render(tree, document.querySelector('#jsondata'));
@@ -106,7 +106,8 @@
       "state": "pending", // order status: pending, canceled, completed
       "fixture_state": "notstarted", // fixture's state: notstarted, canceled, finished
       "fixture_states": [],
-      "actual_return": 0, // the user actual mount get
+      "actual_return": 0, // the user actual mount get,
+      "user_name": "albertlab"
     }
     alert('send request to create order');
     $.ajax({
