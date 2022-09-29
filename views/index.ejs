@@ -19,6 +19,12 @@
       <div>
         <h4>Order Generator</h4>
       </div>
+      <div>
+        <p>your order:</p>
+        <div id="userCurrentOrder">
+
+        </div>
+      </div>
       <div id="jsondata" data-attr="<%= game %>">
       </div>
       <div id="fixtures" data-attr="<%= fixtures%>">
@@ -119,6 +125,39 @@
       console.log(res);
     });
   }
+</script>
+<script>
+  $.ajax({
+    type: "GET",
+    url: "/user/?user_name=albertlab"
+  }).done(function (res, error) {
+    console.log(res);
+    if (res.id) {
+      // fetching the related order
+      console.log(res.order_ids);
+      let postData = {
+        "ids": res.order_ids
+      }
+      $.ajax({
+        type: "POST",
+        url: "/order/orders",
+        contentType: 'application/json; charset=utf-8',
+        data: JSON.stringify(postData)
+      }).done(function (res, error) {
+        console.log(res);
+        if (res && res.length > 0) {
+          let order_result = ``;
+          for (let i = 0; i < res.length; i++) {
+            const order = res[i];
+            order_result += `<p>${order.id} - </p>`;
+            order_result += `<p>${order.fixture_id} @${order.odd_rate}</p>`;
+            order_result += `<p>expected return: ${order.win_return} status <span style="background-color:${order.state == 'pending' ? 'yellow' : 'green'}">${order.state}</span></p>`;
+          }
+          document.getElementById('userCurrentOrder').innerHTML = order_result;
+        }
+      });
+    }
+  });
 </script>
 
 </html>

@@ -32,6 +32,7 @@ router.post('/orders', async function (req, res, next) {
     const database = client.database(config.databaseId);
     const container = database.container(config.containerId);
     let postData = req.body;
+    console.log(postData);
     const query = {
         query: `SELECT * 
         FROM c
