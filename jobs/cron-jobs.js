@@ -1,6 +1,7 @@
 const nodeCron = require("node-cron");
 const axios = require("axios").default;
 const CosmosClient = require("@azure/cosmos").CosmosClient;
+const nodeMailer = require('nodemailer');
 const config = {
     endpoint: "https://yolofootball-database.documents.azure.com:443/",
     key: "hOicNBuPcYclHNG3UHZA9zGKhXp9zrTeoxbagVWBWRql4nXsEbOykJkyxfKMA2cEOGuwvMAMIES8Ssg81bppFA==",
@@ -105,6 +106,28 @@ const allGamesRequest = nodeCron.schedule("59 1 * * *", async function jobYouNee
         console.log('updating fixturesContainer success!');
         console.log(fixturesRes);
     };
+    var transporter = nodeMailer.createTransport({
+        service: 'gmail',
+        auth: {
+          user: 'yolofootballdatacenter@gmail.com',
+          pass: 'vht7enu9'
+        }
+      });
+      
+      var mailOptions = {
+        from: 'yolofootballdatacenter@gmail.com',
+        to: 'yolofootballdatacenter@yahoo.com',
+        subject: 'the cron job finish running',
+        text: 'he cron job finish running'
+      };
+      
+      transporter.sendMail(mailOptions, function(error, info){
+        if (error) {
+          console.log(error);
+        } else {
+          console.log('Email sent: ' + info.response);
+        }
+      });
 });
 
 // const fixturesDetailsRequest = nodeCron.schedule("0 */2 * * *", async function jobYouNeedToExecute() {
