@@ -39,6 +39,7 @@
   var jsondata = document.getElementById('jsondata').getAttribute('data-attr');
   var gamesToday = JSON.parse(jsondata);
   var allGames = gamesToday.games;
+  var gameDate = gamesToday.date;
   for (let i = 0; i < allGames.length; i++) {
     var gameLine = allGames[i];
     var league = gameLine.league.name;
@@ -50,13 +51,10 @@
     var odds_away = gameLine.bookmakers[0].bets[0].values[2].odd;
     document.querySelector('#jsondata').innerHTML = document.querySelector('#jsondata').innerHTML + `<p>${league}-${country}-${bet}: home ${odds_home} | drew ${odds_drew} | away ${odds_away}</p>`;
     document.querySelector('#jsondata').innerHTML = document.querySelector('#jsondata').innerHTML + `
-    <button value="${odds_home}" fixture="${gameLine.fixture.id}" win="0" mount="100" onClick="createOrder(this)">${odds_home}</button>
-    <button value="${odds_drew}" fixture="${gameLine.fixture.id}" win="1" mount="100" onClick="createOrder(this)">${odds_drew}</button>
-    <button value="${odds_away}" fixture="${gameLine.fixture.id}" win="2" mount="100" onClick="createOrder(this)">${odds_away}</button>`
+    <button value="${odds_home}" fixture="${gameDate}@${gameLine.fixture.id}" win="0" mount="100" onClick="createOrder(this)">${odds_home}</button>
+    <button value="${odds_drew}" fixture="${gameDate}@${gameLine.fixture.id}" win="1" mount="100" onClick="createOrder(this)">${odds_drew}</button>
+    <button value="${odds_away}" fixture="${gameDate}@${gameLine.fixture.id}" win="2" mount="100" onClick="createOrder(this)">${odds_away}</button>`
   }
-  // const tree = JsonView.createTree(jsondata);
-  // JsonView.render(tree, document.querySelector('#jsondata'));
-  // JsonView.expandChildren(tree);
 </script>
 <script>
   document.querySelector('#fixtures').innerHTML = '';
@@ -73,14 +71,11 @@
     fixturesString = fixturesString + fixture;
   }
   document.querySelector('#fixtures').innerHTML = fixturesString;
-  // const tree = JsonView.createTree(jsondata);
-  // JsonView.render(tree, document.querySelector('#jsondata'));
-  // JsonView.expandChildren(tree);
 </script>
 <script>
   function getData() {
     $.ajax({
-      url: "/actions/getGames?date=2022-08-19"
+      url: "/actions/getGames?date=2022-08-31"
     }).done(function (res, error) {
       console.log(res);
       if (!error) {

@@ -51,6 +51,37 @@ router.get('/getFixtures', async function (req, res, next) {
     res.send(gamesData);
 });
 
+// router.get('/bulkUpdateOrder', async function (req, res, next) {
+//     const config = {
+//         endpoint: "https://yolofootball-database.documents.azure.com:443/",
+//         key: "hOicNBuPcYclHNG3UHZA9zGKhXp9zrTeoxbagVWBWRql4nXsEbOykJkyxfKMA2cEOGuwvMAMIES8Ssg81bppFA==",
+//         databaseId: "yolofootball",
+//         containerId: "orders"
+//     };
+//     const client = new CosmosClient({ endpoint: config.endpoint, key: config.key });
+//     const database = client.database(config.databaseId);
+//     const container = database.container(config.containerId);
+//     let postData = req.body;
+//     console.log(postData);
+//     const query = {
+//         query: `SELECT * 
+//         FROM c
+//         WHERE c.id IN ("${postData.ids.join('","')}")`
+//     };
+//     console.log(query.query);
+//     var dates = await container.items.query(query).fetchAll();
+//     var orderData = dates.resources;
+//     // check the order needs to be updated
+//     var orders = orderData.filter(order => order.state == 'pending');
+//     // check each fiture result
+//     for (let i = 0; i < orders.lenght; i++) {
+//         var fixtureId = orders[i].fixture_id;
+//         let fixtureDate = fixtureId.split('@')[0];
+//         let fixtureId = fixtureId.split('@')[1];
+//     }
+//     return res.send(orderData);
+// });
+
 function getDateString() {
     var currentDate = new Date();
     var year = currentDate.getUTCFullYear();
