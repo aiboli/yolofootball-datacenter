@@ -13,7 +13,6 @@ const client = new CosmosClient({ endpoint: config.endpoint, key: config.key });
 const database = client.database(config.databaseId);
 const container = database.container(config.containerId);
 const fixturesContainer = database.container('fixtures');
-
 // change to every 2 hours running the cron job, but now only for fixtures
 // change to call at 1:59am
 const allGamesRequest = nodeCron.schedule("59 1 * * *", async function jobYouNeedToExecute() {
@@ -106,29 +105,61 @@ const allGamesRequest = nodeCron.schedule("59 1 * * *", async function jobYouNee
         console.log('updating fixturesContainer success!');
         console.log(fixturesRes);
     };
-    var transporter = nodeMailer.createTransport({
-        service: 'gmail',
+
+    let transporter = nodeMailer.createTransport({
+        host: 'smtp.ethereal.email',
+        port: 587,
+        secure: false, // true for 465, false for other ports
         auth: {
-          user: 'yolofootballdatacenter@gmail.com',
-          pass: 'vht7enu9'
+            user: 'kathryn.abshire@ethereal.email', // generated ethereal user
+            pass: 'ZWwwWSU7UsJKKZThQS' // generated ethereal password
         }
-      });
-      
-      var mailOptions = {
-        from: 'yolofootballdatacenter@gmail.com',
-        to: 'yolofootballdatacenter@yahoo.com',
+    });
+
+    var mailOptions = {
+        from: 'kathryn.abshire@ethereal.email',
+        to: 'yolofootballdatacenter@gmail.com',
         subject: 'the cron job finish running',
         text: 'he cron job finish running'
-      };
-      
-      transporter.sendMail(mailOptions, function(error, info){
+    };
+
+    transporter.sendMail(mailOptions, function (error, info) {
         if (error) {
-          console.log(error);
+            console.log(error);
         } else {
-          console.log('Email sent: ' + info.response);
+            console.log('Email sent: ' + info.response);
         }
-      });
+    });
 });
+
+// const allGamesRequest = nodeCron.schedule("17 22 * * *", async function jobYouNeedToExecute() {
+//     console.log('it is running!');
+//     // create reusable transporter object using the default SMTP transport
+//     let transporter = nodeMailer.createTransport({
+//         host: 'smtp.ethereal.email',
+//         port: 587,
+//         secure: false, // true for 465, false for other ports
+//         auth: {
+//             user: 'kathryn.abshire@ethereal.email', // generated ethereal user
+//             pass: 'ZWwwWSU7UsJKKZThQS' // generated ethereal password
+//         }
+//     });
+
+//     var mailOptions = {
+//         from: 'kathryn.abshire@ethereal.email',
+//         to: 'yolofootballdatacenter@gmail.com',
+//         subject: 'the cron job finish running',
+//         text: 'he cron job finish running'
+//     };
+
+//     transporter.sendMail(mailOptions, function (error, info) {
+//         if (error) {
+//             console.log(error);
+//         } else {
+//             console.log('Email sent: ' + info.response);
+//         }
+//     });
+// });
 
 // const fixturesDetailsRequest = nodeCron.schedule("0 */2 * * *", async function jobYouNeedToExecute() {
 //     console.log("cron job getting fixtures")
