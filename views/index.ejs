@@ -97,7 +97,7 @@
 <script>
   function createOrder(obj) {
     let orderToCreate = {
-      "fixture_id": Number(obj.getAttribute("fixture")), // the fixture id that related to this order
+      "fixture_id": obj.getAttribute("fixture"), // the fixture id that related to this order
       "fixtures_ids": [], // if multiple fixtures added to this order
       "bet_result": Number(obj.getAttribute("win")), // bet result: 0 is host win, 1 is draw, 2 is away win
       "odd_rate": Number(obj.value), // rate
