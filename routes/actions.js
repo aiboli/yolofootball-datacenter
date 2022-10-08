@@ -76,10 +76,13 @@ router.post('/bulkUpdateOrder', async function (req, res, next) {
     var fixtureToOrderMap = {};
     // check the order needs to be updated
     var orders = orderData.filter(order => order.state == 'pending');
+    console.log('order:', orders);
     // check each fiture result
-    for (let i = 0; i < orders.lenght; i++) {
+    for (let i = 0; i < orders.length; i++) {
         var fixtureBigId = orders[i].fixture_id;
+        console.log(fixtureBigId);
         let fixtureDate = fixtureBigId.split('@')[0];
+        console.log(fixtureDate);
         let fixtureId = parseInt(fixtureBigId.split('@')[1]);
         if (!map[fixtureDate]) {
             map[fixtureDate] = [];
@@ -90,7 +93,9 @@ router.post('/bulkUpdateOrder', async function (req, res, next) {
         fixtureToOrderMap[fixtureId].push(orders[i]);
         map[fixtureDate].push(fixtureId);
     }
-    const dates = Object.entries(map);
+    console.log(map);
+    console.log(fixtureToOrderMap);
+    const dates = Object.keys(map);
     const fixtureContainer = database.container('fixtures');
     const fixtureQuery = {
         query: `
@@ -98,18 +103,22 @@ router.post('/bulkUpdateOrder', async function (req, res, next) {
         `
     };
     const allFixtures = await fixtureContainer.items.query(fixtureQuery).fetchAll();
+    console.log(allFixtures.resources.length);
     // check each fixture result
     for (let i = 0; i < allFixtures.resources.length; i++) {
-        let dateToUpdate = allFixtures[i].date;
+        let dateToUpdate = allFixtures.resources[i].date;
         let fixtureToUpdate = map[dateToUpdate];
-        let fixturesData = allFixtures[i].fixtures;
+        let fixturesData = allFixtures.resources[i].fixtures;
         for (let j = 0; j < fixtureToUpdate.length; j++) {
             let thisFixture = fixtureToUpdate[j];
-            let result = fixturesData.filter(item => item.fixture.id == thisFixture);
+            let result = fixturesData.filter(item => item.fixture.id == thisFixture)[0];
             // check the result
             let currentOrders = fixtureToOrderMap[thisFixture];
+            console.log(currentOrders);
+            console.log(result);
             await Promise.all(currentOrders.map(async (order) => {
                 let bet_result = checkResult(order, result);
+                console.log(bet_result);
                 // update order first
                 if (bet_result == 'win') {
                     order.is_win = true;
@@ -129,6 +138,7 @@ router.post('/bulkUpdateOrder', async function (req, res, next) {
                         let currentUser = getUserResult.resources[0];
                         currentUser.account_balance = currentUser.account_balance + order.win_return;
                         const updateUserResult = await userContainer.item(currentUser.id, currentUser.id).replace(currentUser);
+                        console.log(updateUserResult);
                         // return res.status(200).send(updateUserResult);
                     }
                 } else if (bet_result == 'lost') {
@@ -150,8 +160,10 @@ router.post('/bulkUpdateOrder', async function (req, res, next) {
  * @returns {string} win:, lost:, run:, ongoing:
  */
 function checkResult(order, fixture) {
+    console.log('----fixture----');
+    console.log(fixture);
     // check this fixture status
-    if (fixture.status.short == 'FT') {
+    if (fixture.fixture.status.short == 'FT') {
         let homeGoals = fixture.goals.home;
         let awayGoals = fixture.goals.away;
         let result = homeGoals > awayGoals ? 0 : (homeGoals == awayGoals ? 1 : 2);

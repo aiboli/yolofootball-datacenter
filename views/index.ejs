@@ -146,7 +146,8 @@
             const order = res[i];
             order_result += `<p>${order.id} - </p>`;
             order_result += `<p>${order.fixture_id} @${order.odd_rate}</p>`;
-            order_result += `<p>expected return: ${order.win_return} status <span style="background-color:${order.state == 'pending' ? 'yellow' : 'green'}">${order.state}</span></p>`;
+            order_result += `<p>expected return: ${order.win_return} status <span style="background-color:${order.state == 'pending' ? 'yellow' : 'green'}">${order.state}</span> <span>${order.is_win ? 'Win &#128154;' : 'Lost &#127545;'}</span></p>`;
+            order_result += `<p></p>`
           }
           document.getElementById('userCurrentOrder').innerHTML = order_result;
         }
