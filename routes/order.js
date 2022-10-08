@@ -61,7 +61,7 @@ router.post('/', async function (req, res, next) {
     console.log(postData);
     let orderToCreate = {
         "orderdate": new Date().getTime(), // order placed date
-        "fixture_id": parseInt(postData.fixture_id), // the fixture id that related to this order
+        "fixture_id": postData.fixture_id, // the fixture id that related to this order
         "fixtures_ids": [], // if multiple fixtures added to this order
         "bet_result": parseInt(postData.bet_result), // bet result: 0 is host win, 1 is draw, 2 is away win
         "odd_rate": parseFloat(postData.odd_rate), // rate
