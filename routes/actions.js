@@ -1,10 +1,10 @@
 var express = require('express');
 var router = express.Router();
+const CosmosClient = require("@azure/cosmos").CosmosClient;
 
 /* GET home page. */
 router.get('/getGames', async function (req, res, next) {
     //console.log(req);
-    const CosmosClient = require("@azure/cosmos").CosmosClient;
     const config = {
         endpoint: "https://yolofootball-database.documents.azure.com:443/",
         key: "hOicNBuPcYclHNG3UHZA9zGKhXp9zrTeoxbagVWBWRql4nXsEbOykJkyxfKMA2cEOGuwvMAMIES8Ssg81bppFA==",
@@ -28,7 +28,6 @@ router.get('/getGames', async function (req, res, next) {
 
 router.get('/getFixtures', async function (req, res, next) {
     //console.log(req);
-    const CosmosClient = require("@azure/cosmos").CosmosClient;
     const config = {
         endpoint: "https://yolofootball-database.documents.azure.com:443/",
         key: "hOicNBuPcYclHNG3UHZA9zGKhXp9zrTeoxbagVWBWRql4nXsEbOykJkyxfKMA2cEOGuwvMAMIES8Ssg81bppFA==",
@@ -51,7 +50,7 @@ router.get('/getFixtures', async function (req, res, next) {
     res.send(gamesData);
 });
 
-router.get('/bulkUpdateOrder', async function (req, res, next) {
+router.post('/bulkUpdateOrder', async function (req, res, next) {
     const config = {
         endpoint: "https://yolofootball-database.documents.azure.com:443/",
         key: "hOicNBuPcYclHNG3UHZA9zGKhXp9zrTeoxbagVWBWRql4nXsEbOykJkyxfKMA2cEOGuwvMAMIES8Ssg81bppFA==",
@@ -66,7 +65,7 @@ router.get('/bulkUpdateOrder', async function (req, res, next) {
     console.log(postData);
     const userName = req.body.user_name;
     const query = {
-        query: `SELECT * s
+        query: `SELECT *
         FROM c
         WHERE c.id IN ("${postData.ids.join('","')}")`
     };
