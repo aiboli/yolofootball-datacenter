@@ -109,7 +109,7 @@ router.get('/bulkUpdateOrder', async function (req, res, next) {
             let result = fixturesData.filter(item => item.fixture.id == thisFixture);
             // check the result
             let currentOrders = fixtureToOrderMap[thisFixture];
-            currentOrders.forEach(order => {
+            await Promise.all(currentOrders.map(async (order) => {
                 let bet_result = checkResult(order, result);
                 // update order first
                 if (bet_result == 'win') {
@@ -139,7 +139,7 @@ router.get('/bulkUpdateOrder', async function (req, res, next) {
                     const updateOrderResult = await container.item(order.id, order.id).replace(order);
                     // return res.status(200).send(updateOrderResult);
                 }
-            });
+            }));
         }
     }
     return res.send(200);
