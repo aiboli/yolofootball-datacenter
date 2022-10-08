@@ -139,8 +139,23 @@
         contentType: 'application/json; charset=utf-8',
         data: JSON.stringify(postData)
       }).done(function (res, error) {
-        console.log(res);
         if (res && res.length > 0) {
+          let ids = [];
+          for (let i = 0; i < res.length; i++) {
+            ids.push(res[i].id);
+          }
+          let dataToSend = {
+            user_name: 'albertlab',
+            ids: ids
+          };
+          $.ajax({
+            type: "POST",
+            url: "/actions/bulkUpdateOrder",
+            dataType: "json",
+            data: dataToSend
+          }).done(function (res, error) {
+            console.log(res);
+          });
           let order_result = ``;
           for (let i = 0; i < res.length; i++) {
             const order = res[i];

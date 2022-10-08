@@ -91,7 +91,7 @@ router.post('/bulkUpdateOrder', async function (req, res, next) {
             fixtureToOrderMap[fixtureId] = [];
         }
         fixtureToOrderMap[fixtureId].push(orders[i]);
-        map[fixtureDate].push(fixtureId);
+        map[fixtureDate].includes(fixtureId) ? null : map[fixtureDate].push(fixtureId);
     }
     console.log(map);
     console.log(fixtureToOrderMap);
