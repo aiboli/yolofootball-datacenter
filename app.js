@@ -15,6 +15,7 @@ var orderRouter = require('./routes/order');
 
 global.testgame = { test: 'test' };
 global.testfixtures = { test: 'fixtures' };
+global.todayDate = getDateString();
 
 var app = express();
 
@@ -73,4 +74,17 @@ app.use(function (err, req, res, next) {
   res.render('error');
 });
 
+function getDateString() {
+  var currentDate = new Date();
+  var year = currentDate.getUTCFullYear();
+  var month = String(currentDate.getUTCMonth() + 1);
+  if (month.length < 2) {
+      month = "0" + month;
+  }
+  var date = String(currentDate.getUTCDate());
+  if (date.length < 2) {
+      date = "0" + date;
+  }
+  return `${year}-${month}-${date}`;
+}
 module.exports = app;
