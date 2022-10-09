@@ -14,16 +14,43 @@ const client = new CosmosClient({ endpoint: config.endpoint, key: config.key });
 const database = client.database(config.databaseId);
 const container = database.container(config.containerId);
 const fixturesContainer = database.container('fixtures');
+
+const runTimeMonitor = nodeCron.schedule("*/10 * * * *", async function jobYouNeedToExecute() {
+    // global.monitor = {
+    //     lastCheck: new Date(),
+    //     isTodayFixtureFetched: false,
+    //     isTodayGameFetched: false,
+    //     isTodayFixtureFetching: false,
+    //     isTodayGameFetching: false
+    //   };
+    console.log('run time Monitor is running');
+    global.monitor.lastCheck = new Date();
+    console.log('check if game update');
+    var dates = await container.items.query(`SELECT * from c WHERE c.date = '${helper.getDateString()}'`).fetchAll();
+    if (dates.resources.length === 0) {
+        global.monitor.isTodayGameFetched = false;
+    } else {
+        global.monitor.isTodayGameFetched = true;
+    }
+    console.log('check if game update');
+    var fixturesDates = await fixturesContainer.items.query(`SELECT * from c WHERE c.date = '${helper.getDateString()}'`).fetchAll()
+    if (fixturesDates.resources.length === 0) {
+        global.monitor.isTodayFixtureFetched = false;
+    } else {
+        global.monitor.isTodayFixtureFetched = true;
+    }
+});
+
 // change to every 2 hours running the cron job, but now only for fixtures
 // change to call at 1:59am
 // pst time is 7 hours behind
-const allGamesRequest = nodeCron.schedule("55 8,20 * * *", async function jobYouNeedToExecute() {
+const allGamesRequest = nodeCron.schedule("1 8 * * *", async function jobYouNeedToExecute() {
     console.log("all game request executed");
     // check if we already got today's game
     var dates = await container.items.query(`SELECT * from c WHERE c.date = '${helper.getDateString()}'`).fetchAll();
-    console.log('data in db');
     console.log(dates);
     if (dates.resources.length === 0) {
+        global.monitor.isTodayGameFetching = true;
         var currentDateString = helper.getDateString();
         var options = {
             method: 'GET',
@@ -39,8 +66,8 @@ const allGamesRequest = nodeCron.schedule("55 8,20 * * *", async function jobYou
             response = await axios.request(options);
         } catch (e) {
             console.log(e);
+            global.monitor.isTodayGameFetching = false;
         }
-        console.log(response);
         global.testgame = response.data;
         let gamedate = response.data.parameters.date;
         let totalPage = response.data.paging.total;
@@ -56,6 +83,7 @@ const allGamesRequest = nodeCron.schedule("55 8,20 * * *", async function jobYou
         console.log('saving new data');
         var res = await container.items.create(finalData);
         console.log('save success!');
+        global.monitor.isTodayGameFetching = false;
         console.log(res);
     }
     var fixturesDates = await fixturesContainer.items.query(`SELECT * from c WHERE c.date = '${helper.getDateString()}'`).fetchAll();
@@ -63,6 +91,7 @@ const allGamesRequest = nodeCron.schedule("55 8,20 * * *", async function jobYou
     if (fixturesDates.resources.length === 0) {
         //------------------- getting the fixtures by date ----------
         console.log('starting get the fixtures');
+        global.monitor.isTodayGameFetching = true;
         var fixturesOptions = {
             method: 'GET',
             url: 'https://api-football-v1.p.rapidapi.com/v3/fixtures',
@@ -83,8 +112,10 @@ const allGamesRequest = nodeCron.schedule("55 8,20 * * *", async function jobYou
         var fixturesRes = await fixturesContainer.items.create(fixturesObject);
         console.log('save fixturesContainer success!');
         console.log(fixturesRes);
+        global.monitor.isTodayGameFetching = false;
     } else if (fixturesDates.resources.length === 1) {
         console.log('updating the fixture data');
+        global.monitor.isTodayGameFetching = true;
         var fixturesOptions = {
             method: 'GET',
             url: 'https://api-football-v1.p.rapidapi.com/v3/fixtures',
@@ -105,6 +136,7 @@ const allGamesRequest = nodeCron.schedule("55 8,20 * * *", async function jobYou
         var fixturesRes = await fixturesContainer.items({ date: fixturesResponse.data.parameters.date }).replace(fixturesObject);
         console.log('updating fixturesContainer success!');
         console.log(fixturesRes);
+        global.monitor.isTodayGameFetching = false;
     };
 
     // let transporter = nodeMailer.createTransport({
@@ -138,14 +170,30 @@ const allGamesRequest = nodeCron.schedule("55 8,20 * * *", async function jobYou
 
 function start() {
     allGamesRequest.start();
+    runTimeMonitor.start();
 }
 
 async function prepareAllGamesData(startPage, endPage) {
-    const delay = (ms = 1000) => new Promise((r) => setTimeout(r, ms));
+    const delay = (ms = 1200) => new Promise((r) => setTimeout(r, ms));
     const getInSeries = async (promises) => {
         let results = [];
+        let count = 1;
         for (let promise of promises) {
-            results.push(await delay().then(() => promise));
+            console.log('executing the request for pages', count++);
+            await delay();
+            try {
+                const request_result = await axios.request(promise);
+                // promise.then(response => {
+                //     console.log('request called for page', count);
+                //     results.push(response);
+                // })
+                // results.push(await delay().then(() => promise));
+                results.push(request_result);
+                console.log('executing success for:', count);
+            } catch (e) {
+                console.log('executing error:', count);
+                console.log(e);
+            }
         }
         return results;
     };
@@ -165,13 +213,14 @@ async function prepareAllGamesData(startPage, endPage) {
                 'x-rapidapi-key': '28fc80e178mshdff1cc6efb6539cp119f94jsn1a2811635bf8'
             }
         }
-        return axios.request(thisOption);
+        return thisOption;
     });
     try {
         const results = await getInSeries(promises);
         return results;
     } catch (e) {
         console.log(e);
+        global.monitor.isTodayGameFetching = false;
     }
     return null;
 }

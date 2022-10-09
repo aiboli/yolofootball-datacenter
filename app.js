@@ -14,6 +14,13 @@ var orderRouter = require('./routes/order');
 
 global.testgame = { test: 'test' };
 global.testfixtures = { test: 'fixtures' };
+global.monitor = {
+  lastCheck: new Date(),
+  isTodayFixtureFetched: false,
+  isTodayGameFetched: false,
+  isTodayFixtureFetching: false,
+  isTodayGameFetching: false
+};
 
 var app = express();
 

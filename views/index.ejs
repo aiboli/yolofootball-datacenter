@@ -14,7 +14,9 @@
     <%= title %>
   </h1>
   <p>Welcome to <%= title %> today is:
-    <span><%= date %></span>
+      <span>
+        <%= date %>
+      </span>
       <button id="getGames" onclick="getData()">get games data</button>
       <button id="getGames" onclick="getFData()">get fxitures data</button>
       <div>
@@ -25,6 +27,9 @@
         <div id="userCurrentOrder">
 
         </div>
+      </div>
+      <div data-attr="<%= monitor %>" class="monitorPanel">
+
       </div>
       <div id="jsondata" data-attr="<%= game %>">
       </div>
@@ -152,8 +157,8 @@
           $.ajax({
             type: "POST",
             url: "/actions/bulkUpdateOrder",
-            dataType: "json",
-            data: dataToSend
+            contentType: 'application/json; charset=utf-8',
+            data: JSON.stringify(dataToSend)
           }).done(function (res, error) {
             console.log(res);
           });
@@ -170,6 +175,23 @@
       });
     }
   });
+</script>
+<script>
+  var panel = document.getElementsByClassName('monitorPanel')[0];
+  var monitorDataString = panel.getAttribute('data-attr');
+  var monitorData = JSON.parse(monitorDataString);
+  var tempInnerHTML = ``;
+  var running = `⚽`;
+  var stopped = `🛑`;
+  var finished = `✔️`
+  tempInnerHTML = `
+    <p>last time check: ${monitorData.lastCheck}</p>
+    <p>fixture data ready: ${monitorData.isTodayFixtureFetched ? finished : stopped}</p>
+    <p>game data ready: ${monitorData.isTodayGameFetched ? finished : stopped}</p>
+    <p>fixture data status: <span class="${monitorData.isTodayFixtureFetching ? 'running' : 'stopped'}">${monitorData.isTodayFixtureFetching ? running : stopped}</span></p>
+    <p>game data status: <span class="${monitorData.isTodayGameFetching ? 'running' : 'stopped'}">${monitorData.isTodayGameFetching ? running : stopped}</span></p>
+  `
+  panel.innerHTML = tempInnerHTML;
 </script>
 
 </html>
