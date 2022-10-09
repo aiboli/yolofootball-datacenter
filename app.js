@@ -5,7 +5,6 @@ var cookieParser = require('cookie-parser');
 var logger = require('morgan');
 var sassMiddleware = require('node-sass-middleware');
 var bodyParser = require('body-parser');
-// const CosmosClient = require("@azure/cosmos").CosmosClient;
 var JobsManager = require('./jobs/cron-jobs');
 
 var indexRouter = require('./routes/index');
@@ -15,7 +14,6 @@ var orderRouter = require('./routes/order');
 
 global.testgame = { test: 'test' };
 global.testfixtures = { test: 'fixtures' };
-global.todayDate = getDateString();
 
 var app = express();
 
@@ -43,18 +41,6 @@ app.use('/', indexRouter);
 app.use('/user', usersRouter);
 app.use('/actions', actionsRouter);
 app.use('/order', orderRouter);
-
-// const config = {
-//   endpoint: "https://yolofootball-database.documents.azure.com:443/",
-//   key: "hOicNBuPcYclHNG3UHZA9zGKhXp9zrTeoxbagVWBWRql4nXsEbOykJkyxfKMA2cEOGuwvMAMIES8Ssg81bppFA==",
-//   databaseId: "yolofootball",
-//   containerId: "games"
-// };
-// console.log('connect to cosmosdb')
-// const client = new CosmosClient({ endpoint: config.endpoint, key: config.key });
-// const database = client.database(config.databaseId);
-// const container = database.container(config.containerId);
-// console.log(container.items.query("SELECT * FROM c"));
 // jobs manager
 JobsManager.start();
 
@@ -74,23 +60,4 @@ app.use(function (err, req, res, next) {
   res.render('error');
 });
 
-function getDateString() {
-  var currentDate = new Date();
-  const nDate = currentDate.toLocaleString('en-US', {
-      timeZone: 'America/Los_Angeles'
-  });
-  const dateArray = nDate.split(',');
-  const dateFull = dateArray[0];
-  const dateDetailsArray = dateFull.split('/');
-  let day = dateDetailsArray[1];
-  let month = dateDetailsArray[0];
-  let year = dateDetailsArray[2];
-  if (day.length < 2) {
-      day = '0' + day;
-  }
-  if (month.length < 2) {
-      month = '0' + month;
-  }
-  return `${year}-${month}-${day}`;
-}
 module.exports = app;

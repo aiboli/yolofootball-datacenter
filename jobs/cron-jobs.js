@@ -1,5 +1,6 @@
 const nodeCron = require("node-cron");
 const axios = require("axios").default;
+const helper = require('../common/helper');
 const CosmosClient = require("@azure/cosmos").CosmosClient;
 // const nodeMailer = require('nodemailer');
 const config = {
@@ -18,13 +19,12 @@ const fixturesContainer = database.container('fixtures');
 // pst time is 7 hours behind
 const allGamesRequest = nodeCron.schedule("0 7,19 * * *", async function jobYouNeedToExecute() {
     console.log("all game request executed");
-    console.log(getDateString());
     // check if we already got today's game
-    var dates = await container.items.query(`SELECT * from c WHERE c.date = '${getDateString()}'`).fetchAll();
+    var dates = await container.items.query(`SELECT * from c WHERE c.date = '${helper.getDateString()}'`).fetchAll();
     console.log('data in db');
     console.log(dates);
     if (dates.resources.length === 0) {
-        var currentDateString = getDateString();
+        var currentDateString = helper.getDateString();
         var options = {
             method: 'GET',
             url: 'https://api-football-v1.p.rapidapi.com/v3/odds',
@@ -58,7 +58,7 @@ const allGamesRequest = nodeCron.schedule("0 7,19 * * *", async function jobYouN
         console.log('save success!');
         console.log(res);
     }
-    var fixturesDates = await fixturesContainer.items.query(`SELECT * from c WHERE c.date = '${getDateString()}'`).fetchAll();
+    var fixturesDates = await fixturesContainer.items.query(`SELECT * from c WHERE c.date = '${helper.getDateString()}'`).fetchAll();
     console.log('check if data in fixturesContainer db');
     if (fixturesDates.resources.length === 0) {
         //------------------- getting the fixtures by date ----------
@@ -66,7 +66,7 @@ const allGamesRequest = nodeCron.schedule("0 7,19 * * *", async function jobYouN
         var fixturesOptions = {
             method: 'GET',
             url: 'https://api-football-v1.p.rapidapi.com/v3/fixtures',
-            params: { date: getDateString(), timezone: 'America/Los_Angeles' },
+            params: { date: helper.getDateString(), timezone: 'America/Los_Angeles' },
             headers: {
                 'x-rapidapi-host': 'api-football-v1.p.rapidapi.com',
                 'x-rapidapi-key': '28fc80e178mshdff1cc6efb6539cp119f94jsn1a2811635bf8'
@@ -88,7 +88,7 @@ const allGamesRequest = nodeCron.schedule("0 7,19 * * *", async function jobYouN
         var fixturesOptions = {
             method: 'GET',
             url: 'https://api-football-v1.p.rapidapi.com/v3/fixtures',
-            params: { date: getDateString(), timezone: 'America/Los_Angeles' },
+            params: { date: helper.getDateString(), timezone: 'America/Los_Angeles' },
             headers: {
                 'x-rapidapi-host': 'api-football-v1.p.rapidapi.com',
                 'x-rapidapi-key': '28fc80e178mshdff1cc6efb6539cp119f94jsn1a2811635bf8'
@@ -136,95 +136,8 @@ const allGamesRequest = nodeCron.schedule("0 7,19 * * *", async function jobYouN
     timezone: 'America/Los_Angeles'
 });
 
-// const allGamesRequest = nodeCron.schedule("17 22 * * *", async function jobYouNeedToExecute() {
-//     console.log('it is running!');
-//     // create reusable transporter object using the default SMTP transport
-//     let transporter = nodeMailer.createTransport({
-//         host: 'smtp.ethereal.email',
-//         port: 587,
-//         secure: false, // true for 465, false for other ports
-//         auth: {
-//             user: 'kathryn.abshire@ethereal.email', // generated ethereal user
-//             pass: 'ZWwwWSU7UsJKKZThQS' // generated ethereal password
-//         }
-//     });
-
-//     var mailOptions = {
-//         from: 'kathryn.abshire@ethereal.email',
-//         to: 'yolofootballdatacenter@gmail.com',
-//         subject: 'the cron job finish running',
-//         text: 'he cron job finish running'
-//     };
-
-//     transporter.sendMail(mailOptions, function (error, info) {
-//         if (error) {
-//             console.log(error);
-//         } else {
-//             console.log('Email sent: ' + info.response);
-//         }
-//     });
-// });
-
-// const fixturesDetailsRequest = nodeCron.schedule("0 */2 * * *", async function jobYouNeedToExecute() {
-//     console.log("cron job getting fixtures")
-//     // check if we already got today's game
-//     var dates = await container.items.query(`SELECT * from c WHERE c.date = '${getDateString()}'`).fetchAll();
-//     console.log('check if we have the current date data');
-//     console.log(dates);
-//     if (dates.resources.length === 1) {
-//         var fixturesDates = await fixturesContainer.items.query(`SELECT * from c WHERE c.date = '${getDateString()}'`).fetchAll();
-//         console.log('check if data in fixturesContainer db');
-//         if (fixturesDates.resources.length === 0) {
-//             //------------------- getting the fixtures by date ----------
-//             console.log('starting get the fixtures');
-//             var fixturesOptions = {
-//                 method: 'GET',
-//                 url: 'https://api-football-v1.p.rapidapi.com/v3/fixtures',
-//                 params: { date: getDateString(), timezone: 'America/Los_Angeles' },
-//                 headers: {
-//                     'x-rapidapi-host': 'api-football-v1.p.rapidapi.com',
-//                     'x-rapidapi-key': '28fc80e178mshdff1cc6efb6539cp119f94jsn1a2811635bf8'
-//                 }
-//             };
-//             var fixturesResponse = await axios.request(fixturesOptions);
-//             var fixturesObject = {
-//                 date: fixturesResponse.data.parameters.date,
-//                 fixtures: fixturesResponse.data.response
-//             };
-//             global.testfixtures = fixturesObject;
-//             console.log('store data in database');
-//             console.log('saving new fixturesContainer data');
-//             var fixturesRes = await fixturesContainer.items.create(fixturesObject);
-//             console.log('save fixturesContainer success!');
-//             console.log(fixturesRes);
-//         } else if (fixturesDates.resources.length === 1) {
-//             console.log(fixturesDates.resources);
-//         }
-//     }
-// });
-
 function start() {
     allGamesRequest.start();
-}
-
-function getDateString() {
-    var currentDate = new Date();
-    const nDate = currentDate.toLocaleString('en-US', {
-        timeZone: 'America/Los_Angeles'
-    });
-    const dateArray = nDate.split(',');
-    const dateFull = dateArray[0];
-    const dateDetailsArray = dateFull.split('/');
-    let day = dateDetailsArray[1];
-    let month = dateDetailsArray[0];
-    let year = dateDetailsArray[2];
-    if (day.length < 2) {
-        day = '0' + day;
-    }
-    if (month.length < 2) {
-        month = '0' + month;
-    }
-    return `${year}-${month}-${day}`;
 }
 
 async function prepareAllGamesData(startPage, endPage) {
@@ -246,7 +159,7 @@ async function prepareAllGamesData(startPage, endPage) {
         const thisOption = {
             method: 'GET',
             url: 'https://api-football-v1.p.rapidapi.com/v3/odds',
-            params: { date: getDateString(), timezone: 'America/Los_Angeles', page: page },
+            params: { date: helper.getDateString(), timezone: 'America/Los_Angeles', page: page },
             headers: {
                 'x-rapidapi-host': 'api-football-v1.p.rapidapi.com',
                 'x-rapidapi-key': '28fc80e178mshdff1cc6efb6539cp119f94jsn1a2811635bf8'

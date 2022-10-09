@@ -1,9 +1,10 @@
 var express = require('express');
+var helper = require('../common/helper');
 var router = express.Router();
+
 const CosmosClient = require("@azure/cosmos").CosmosClient;
 
 router.get('/all', async function (req, res, next) {
-    //console.log(req);
     const config = {
         endpoint: "https://yolofootball-database.documents.azure.com:443/",
         key: "hOicNBuPcYclHNG3UHZA9zGKhXp9zrTeoxbagVWBWRql4nXsEbOykJkyxfKMA2cEOGuwvMAMIES8Ssg81bppFA==",
@@ -16,12 +17,11 @@ router.get('/all', async function (req, res, next) {
     var dates = await container.items.query(`SELECT * from c`).fetchAll();
     var orderData = dates.resources[0];
     global.testOrder = orderData;
-    res.send(orderData);
+    return res.statusCode(200).send(orderData);
 });
 
 // get orders
 router.post('/orders', async function (req, res, next) {
-    //console.log(req);
     const config = {
         endpoint: "https://yolofootball-database.documents.azure.com:443/",
         key: "hOicNBuPcYclHNG3UHZA9zGKhXp9zrTeoxbagVWBWRql4nXsEbOykJkyxfKMA2cEOGuwvMAMIES8Ssg81bppFA==",
@@ -32,7 +32,6 @@ router.post('/orders', async function (req, res, next) {
     const database = client.database(config.databaseId);
     const container = database.container(config.containerId);
     let postData = req.body;
-    console.log(postData);
     const query = {
         query: `SELECT * 
         FROM c
@@ -41,12 +40,11 @@ router.post('/orders', async function (req, res, next) {
     console.log(query.query);
     var dates = await container.items.query(query).fetchAll();
     var orderData = dates.resources;
-    return res.send(orderData);
+    return res.statusCode(200).send(orderData);
 });
 
 // create order
 router.post('/', async function (req, res, next) {
-    //console.log(req);
     // need this header: Content-Type: application/json; charset=utf-8
     const config = {
         endpoint: "https://yolofootball-database.documents.azure.com:443/",
@@ -58,7 +56,6 @@ router.post('/', async function (req, res, next) {
     const database = client.database(config.databaseId);
     const container = database.container(config.containerId);
     let postData = req.body;
-    console.log(postData);
     let orderToCreate = {
         "orderdate": new Date().getTime(), // order placed date
         "fixture_id": postData.fixture_id, // the fixture id that related to this order
@@ -76,7 +73,6 @@ router.post('/', async function (req, res, next) {
     }
     var orderCreateResult = await container.items.create(orderToCreate);
     var orderData = orderCreateResult.resource;
-    console.log(orderCreateResult);
     // update users information
     if (!postData.user_name) {
         return res.status(200).send(orderData);
@@ -91,9 +87,9 @@ router.post('/', async function (req, res, next) {
         currentUser.order_ids.push(orderData.id);
         currentUser.account_balance = currentUser.account_balance - orderData.odd_mount;
         await userContainer.item(currentUser.id, currentUser.id).replace(currentUser);
-        return res.status(200).send(orderData);
+        return res.statusCode(200).send(orderData);
     }
-    return res.status(200).send(orderData);
+    return res.statusCode(400).send(orderData);
 });
 
 // update order
@@ -114,15 +110,14 @@ router.put('/:orderId', async function (req, res, next) {
     const postData = req.body;
 
     if (!orderId) {
-        throw Error('no orderId');
+        return res.statusCode(400);
     }
 
     const orderResponse = await container.item(orderId, orderId).read();
     let currentOrder = orderResponse.resource;
-    console.log(currentOrder);
     if (!currentOrder) {
         // throw Error('no order exists');
-        return res.send(404);
+        return res.statusCode(400);
     }
     // 2 conditions: to cancel or complete order
     if (postData && postData.state) {
@@ -130,10 +125,10 @@ router.put('/:orderId', async function (req, res, next) {
             currentOrder.state = postData.state;
         } else if (postData.state == 'completed') {
             if (postData.returned_mount !== 0 && !postData.returned_mount) {
-                throw new Error('no returned mount');
+                return res.statusCode(400);
             }
             if (!postData.win_result) {
-                throw new Error('no returned mount');
+                return res.statusCode(400);
             }
             currentOrder.state = postData.state;
             currentOrder.is_win = postData.win_result;
@@ -142,7 +137,7 @@ router.put('/:orderId', async function (req, res, next) {
     }
     var orderCreateResult = await container.item(orderId, orderId).replace(currentOrder);
     var orderData = orderCreateResult.resource;
-    return res.send(orderData);
+    return res.statusCode(200).send(orderData);
 });
 
 module.exports = router;

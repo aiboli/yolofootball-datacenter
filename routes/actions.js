@@ -1,5 +1,6 @@
 var express = require('express');
 var router = express.Router();
+const helper = require('../common/helper');
 const CosmosClient = require("@azure/cosmos").CosmosClient;
 
 /* GET home page. */
@@ -19,7 +20,7 @@ router.get('/getGames', async function (req, res, next) {
     if (req.query.date) {
         dates = await container.items.query(`SELECT * from c WHERE c.date = '${req.query.date}'`).fetchAll();
     } else {
-        dates = await container.items.query(`SELECT * from c WHERE c.date = '${getDateString()}'`).fetchAll();
+        dates = await container.items.query(`SELECT * from c WHERE c.date = '${helper.getDateString()}'`).fetchAll();
     }
     var gamesData = dates.resources[0];
     global.testgame = gamesData;
@@ -42,7 +43,7 @@ router.get('/getFixtures', async function (req, res, next) {
     if (req.query.date) {
         dates = await container.items.query(`SELECT * from c WHERE c.date = '${req.query.date}'`).fetchAll();
     } else {
-        dates = await container.items.query(`SELECT * from c WHERE c.date = '${getDateString()}'`).fetchAll();
+        dates = await container.items.query(`SELECT * from c WHERE c.date = '${helper.getDateString()}'`).fetchAll();
     }
     var gamesData = dates.resources[0];
     console.log(dates);
@@ -137,16 +138,14 @@ router.post('/bulkUpdateOrder', async function (req, res, next) {
                     if (getUserResult.resources && getUserResult.resources.length > 0) {
                         let currentUser = getUserResult.resources[0];
                         currentUser.account_balance = currentUser.account_balance + order.win_return;
-                        const updateUserResult = await userContainer.item(currentUser.id, currentUser.id).replace(currentUser);
-                        console.log(updateUserResult);
+                        await userContainer.item(currentUser.id, currentUser.id).replace(currentUser);
                         // return res.status(200).send(updateUserResult);
                     }
                 } else if (bet_result == 'lost') {
                     order.is_win = false;
                     order.state = 'completed';
                     order.fixture_state = 'finished';
-                    const updateOrderResult = await container.item(order.id, order.id).replace(order);
-                    // return res.status(200).send(updateOrderResult);
+                    await container.item(order.id, order.id).replace(order);
                 }
             }));
         }
@@ -172,26 +171,6 @@ function checkResult(order, fixture) {
         return isWin ? 'win' : 'lost';
     }
     return 'ongoing'
-}
-
-function getDateString() {
-    var currentDate = new Date();
-    const nDate = currentDate.toLocaleString('en-US', {
-        timeZone: 'America/Los_Angeles'
-    });
-    const dateArray = nDate.split(',');
-    const dateFull = dateArray[0];
-    const dateDetailsArray = dateFull.split('/');
-    let day = dateDetailsArray[1];
-    let month = dateDetailsArray[0];
-    let year = dateDetailsArray[2];
-    if (day.length < 2) {
-        day = '0' + day;
-    }
-    if (month.length < 2) {
-        month = '0' + month;
-    }
-    return `${year}-${month}-${day}`;
 }
 
 module.exports = router;

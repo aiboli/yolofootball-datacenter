@@ -15,7 +15,6 @@ router.post('/', async function (req, res, next) {
   const database = client.database(config.databaseId);
   const container = database.container(config.containerId);
   let postData = req.body;
-  console.log(postData);
   let userToCreate = {
     "user_name": postData.user_name,
     "user_email": postData.email,
@@ -25,16 +24,15 @@ router.post('/', async function (req, res, next) {
     ],
     "created_bid_ids": [
     ],
-    "account_balance": 10000,
-    "password": "pwd",
-    "is_valid_user": true,
+    "account_balance": postData.amount,
+    "password": postData.password,
+    "is_valid_user": false,
     "customized_field": {
       "prefered_culture": "en-us"
     }
   };
   var userCreateResult = await container.items.create(userToCreate);
   var userData = userCreateResult.resource;
-  console.log(userData);
   return res.status(200).json(userData);
 });
 
@@ -56,7 +54,6 @@ router.get('/', async function (req, res, next) {
   }
   var userFetchResult = await container.items.query(query).fetchAll();
   var userData = userFetchResult.resources[0];
-  console.log(userData);
   return res.status(200).json(userData);
 })
 
