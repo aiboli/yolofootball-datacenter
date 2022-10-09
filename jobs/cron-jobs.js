@@ -15,7 +15,8 @@ const container = database.container(config.containerId);
 const fixturesContainer = database.container('fixtures');
 // change to every 2 hours running the cron job, but now only for fixtures
 // change to call at 1:59am
-const allGamesRequest = nodeCron.schedule("59 1,15 * * *", async function jobYouNeedToExecute() {
+// pst time is 7 hours behind
+const allGamesRequest = nodeCron.schedule("0 7,19 * * *", async function jobYouNeedToExecute() {
     console.log("all game request executed");
     console.log(getDateString());
     // check if we already got today's game
@@ -208,16 +209,22 @@ function start() {
 
 function getDateString() {
     var currentDate = new Date();
-    var year = currentDate.getUTCFullYear();
-    var month = String(currentDate.getUTCMonth() + 1);
+    const nDate = currentDate.toLocaleString('en-US', {
+        timeZone: 'America/Los_Angeles'
+    });
+    const dateArray = nDate.split(',');
+    const dateFull = dateArray[0];
+    const dateDetailsArray = dateFull.split('/');
+    let day = dateDetailsArray[1];
+    let month = dateDetailsArray[0];
+    let year = dateDetailsArray[2];
+    if (day.length < 2) {
+        day = '0' + day;
+    }
     if (month.length < 2) {
-        month = "0" + month;
+        month = '0' + month;
     }
-    var date = String(currentDate.getUTCDate());
-    if (date.length < 2) {
-        date = "0" + date;
-    }
-    return `${year}-${month}-${date}`;
+    return `${year}-${month}-${day}`;
 }
 
 async function prepareAllGamesData(startPage, endPage) {

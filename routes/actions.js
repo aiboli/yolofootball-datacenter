@@ -176,16 +176,22 @@ function checkResult(order, fixture) {
 
 function getDateString() {
     var currentDate = new Date();
-    var year = currentDate.getUTCFullYear();
-    var month = String(currentDate.getUTCMonth() + 1);
+    const nDate = currentDate.toLocaleString('en-US', {
+        timeZone: 'America/Los_Angeles'
+    });
+    const dateArray = nDate.split(',');
+    const dateFull = dateArray[0];
+    const dateDetailsArray = dateFull.split('/');
+    let day = dateDetailsArray[1];
+    let month = dateDetailsArray[0];
+    let year = dateDetailsArray[2];
+    if (day.length < 2) {
+        day = '0' + day;
+    }
     if (month.length < 2) {
-        month = "0" + month;
+        month = '0' + month;
     }
-    var date = String(currentDate.getUTCDate());
-    if (date.length < 2) {
-        date = "0" + date;
-    }
-    return `${year}-${month}-${date}`;
+    return `${year}-${month}-${day}`;
 }
 
 module.exports = router;
