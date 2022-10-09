@@ -17,7 +17,7 @@ router.get('/all', async function (req, res, next) {
     var dates = await container.items.query(`SELECT * from c`).fetchAll();
     var orderData = dates.resources[0];
     global.testOrder = orderData;
-    return res.statusCode(200).send(orderData);
+    return res.status(200).send(orderData);
 });
 
 // get orders
@@ -40,7 +40,7 @@ router.post('/orders', async function (req, res, next) {
     console.log(query.query);
     var dates = await container.items.query(query).fetchAll();
     var orderData = dates.resources;
-    return res.statusCode(200).send(orderData);
+    return res.status(200).send(orderData);
 });
 
 // create order
@@ -87,9 +87,9 @@ router.post('/', async function (req, res, next) {
         currentUser.order_ids.push(orderData.id);
         currentUser.account_balance = currentUser.account_balance - orderData.odd_mount;
         await userContainer.item(currentUser.id, currentUser.id).replace(currentUser);
-        return res.statusCode(200).send(orderData);
+        return res.status(200).send(orderData);
     }
-    return res.statusCode(400).send(orderData);
+    return res.status(400).send(orderData);
 });
 
 // update order
@@ -110,14 +110,14 @@ router.put('/:orderId', async function (req, res, next) {
     const postData = req.body;
 
     if (!orderId) {
-        return res.statusCode(400);
+        return res.status(400);
     }
 
     const orderResponse = await container.item(orderId, orderId).read();
     let currentOrder = orderResponse.resource;
     if (!currentOrder) {
         // throw Error('no order exists');
-        return res.statusCode(400);
+        return res.status(400);
     }
     // 2 conditions: to cancel or complete order
     if (postData && postData.state) {
@@ -125,10 +125,10 @@ router.put('/:orderId', async function (req, res, next) {
             currentOrder.state = postData.state;
         } else if (postData.state == 'completed') {
             if (postData.returned_mount !== 0 && !postData.returned_mount) {
-                return res.statusCode(400);
+                return res.status(400);
             }
             if (!postData.win_result) {
-                return res.statusCode(400);
+                return res.status(400);
             }
             currentOrder.state = postData.state;
             currentOrder.is_win = postData.win_result;
@@ -137,7 +137,7 @@ router.put('/:orderId', async function (req, res, next) {
     }
     var orderCreateResult = await container.item(orderId, orderId).replace(currentOrder);
     var orderData = orderCreateResult.resource;
-    return res.statusCode(200).send(orderData);
+    return res.status(200).send(orderData);
 });
 
 module.exports = router;
