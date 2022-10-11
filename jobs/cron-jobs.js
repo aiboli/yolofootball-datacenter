@@ -169,6 +169,7 @@ const allGamesRequest = nodeCron.schedule("30 1,12 * * *", async function jobYou
 });
 
 function start() {
+    init();
     allGamesRequest.start();
     runTimeMonitor.start();
 }
@@ -247,6 +248,26 @@ function filterGames(games) {
 
 function filterSpecificOddsProvider(id, data) {
     return data.id === id;
+}
+
+async function init() {
+    console.log('initial check')
+    console.log('check if game update');
+    var dates = await container.items.query(`SELECT * from c WHERE c.date = '${helper.getDateString()}'`).fetchAll();
+    if (dates.resources.length === 0) {
+        global.monitor.isTodayGameFetched = false;
+    } else {
+        global.testgame = dates.resources[0];
+        global.monitor.isTodayGameFetched = true;
+    }
+    console.log('check if game update');
+    var fixturesDates = await fixturesContainer.items.query(`SELECT * from c WHERE c.date = '${helper.getDateString()}'`).fetchAll()
+    if (fixturesDates.resources.length === 0) {
+        global.monitor.isTodayFixtureFetched = false;
+    } else {
+        global.testfixtures = fixturesDates.resources[0];
+        global.monitor.isTodayFixtureFetched = true;
+    }
 }
 
 exports.start = start;
