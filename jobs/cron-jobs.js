@@ -91,7 +91,7 @@ const allGamesRequest = nodeCron.schedule("30 1,12 * * *", async function jobYou
     if (fixturesDates.resources.length === 0) {
         //------------------- getting the fixtures by date ----------
         console.log('starting get the fixtures');
-        global.monitor.isTodayGameFetching = true;
+        global.monitor.isTodayFixtureFetching = true;
         var fixturesOptions = {
             method: 'GET',
             url: 'https://api-football-v1.p.rapidapi.com/v3/fixtures',
@@ -112,10 +112,10 @@ const allGamesRequest = nodeCron.schedule("30 1,12 * * *", async function jobYou
         var fixturesRes = await fixturesContainer.items.create(fixturesObject);
         console.log('save fixturesContainer success!');
         console.log(fixturesRes);
-        global.monitor.isTodayGameFetching = false;
+        global.monitor.isTodayFixtureFetching = false;
     } else if (fixturesDates.resources.length === 1) {
         console.log('updating the fixture data');
-        global.monitor.isTodayGameFetching = true;
+        global.monitor.isTodayFixtureFetching = true;
         var fixturesOptions = {
             method: 'GET',
             url: 'https://api-football-v1.p.rapidapi.com/v3/fixtures',
@@ -136,7 +136,7 @@ const allGamesRequest = nodeCron.schedule("30 1,12 * * *", async function jobYou
         var fixturesRes = await fixturesContainer.items({ date: fixturesResponse.data.parameters.date }).replace(fixturesObject);
         console.log('updating fixturesContainer success!');
         console.log(fixturesRes);
-        global.monitor.isTodayGameFetching = false;
+        global.monitor.isTodayFixtureFetching = false;
     };
 
     // let transporter = nodeMailer.createTransport({
