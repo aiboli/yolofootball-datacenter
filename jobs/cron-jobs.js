@@ -15,7 +15,7 @@ const database = client.database(config.databaseId);
 const container = database.container(config.containerId);
 const fixturesContainer = database.container('fixtures');
 
-const runTimeMonitor = nodeCron.schedule("*/10 * * * *", async function jobYouNeedToExecute() {
+const runTimeMonitor = nodeCron.schedule("*/3 * * * *", async function jobYouNeedToExecute() {
     // global.monitor = {
     //     lastCheck: new Date(),
     //     isTodayFixtureFetched: false,
@@ -44,7 +44,7 @@ const runTimeMonitor = nodeCron.schedule("*/10 * * * *", async function jobYouNe
 // change to every 2 hours running the cron job, but now only for fixtures
 // change to call at 1:59am
 // pst time is 7 hours behind
-const allGamesRequest = nodeCron.schedule("30 1 * * *", async function jobYouNeedToExecute() {
+const allGamesRequest = nodeCron.schedule("30 1,12 * * *", async function jobYouNeedToExecute() {
     console.log("all game request executed");
     // check if we already got today's game
     var dates = await container.items.query(`SELECT * from c WHERE c.date = '${helper.getDateString()}'`).fetchAll();
