@@ -44,7 +44,7 @@ const runTimeMonitor = nodeCron.schedule("*/3 * * * *", async function jobYouNee
 // change to every 2 hours running the cron job, but now only for fixtures
 // change to call at 1:59am
 // pst time is 7 hours behind
-const allGamesRequest = nodeCron.schedule("30 1,12 * * *", async function jobYouNeedToExecute() {
+const allGamesRequest = nodeCron.schedule("30 1,12,14 * * *", async function jobYouNeedToExecute() {
     console.log("all game request executed");
     // check if we already got today's game
     var dates = await container.items.query(`SELECT * from c WHERE c.date = '${helper.getDateString()}'`).fetchAll();
@@ -170,8 +170,13 @@ const allGamesRequest = nodeCron.schedule("30 1,12 * * *", async function jobYou
 
 function start() {
     init();
-    allGamesRequest.start();
-    runTimeMonitor.start();
+    // if it is dev machine stop this by default
+    if (process.env.NODE_ENV !== 'development') {
+        allGamesRequest.start();
+        runTimeMonitor.start();
+    } else {
+        console.log('-----welcome developers!------');
+    }
 }
 
 async function prepareAllGamesData(startPage, endPage) {
@@ -260,7 +265,7 @@ async function init() {
         global.testgame = dates.resources[0];
         global.monitor.isTodayGameFetched = true;
     }
-    console.log('check if game update');
+    console.log('check if fixture update');
     var fixturesDates = await fixturesContainer.items.query(`SELECT * from c WHERE c.date = '${helper.getDateString()}'`).fetchAll()
     if (fixturesDates.resources.length === 0) {
         global.monitor.isTodayFixtureFetched = false;
