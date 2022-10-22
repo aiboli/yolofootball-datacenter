@@ -158,13 +158,13 @@ const allGamesRequest = nodeCron.schedule("30 1,12 * * *", async function jobYou
 
     // transporter.sendMail(mailOptions, function (error, info) {
     //     if (error) {
-    //         console.log(error);
+    //         console.log(errsor);
     //     } else {
     //         console.log('Email sent: ' + info.response);
     //     }
     // });
 }, {
-    scheduled: true,
+    scheduled: false,
     timezone: 'America/Los_Angeles'
 });
 
