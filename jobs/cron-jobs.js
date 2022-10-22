@@ -14,6 +14,7 @@ const client = new CosmosClient({ endpoint: config.endpoint, key: config.key });
 const database = client.database(config.databaseId);
 const container = database.container(config.containerId);
 const fixturesContainer = database.container('fixtures');
+const leaguesContainer = database.container('leagues');
 
 const runTimeMonitor = nodeCron.schedule("*/3 * * * *", async function jobYouNeedToExecute() {
     // global.monitor = {
@@ -168,10 +169,88 @@ const allGamesRequest = nodeCron.schedule("30 1,12 * * *", async function jobYou
     timezone: 'America/Los_Angeles'
 });
 
+const allDataRequest = nodeCron.schedule("1 1,10,19 * * *", async function jobYouNeedToExecute() {
+
+    let league_ids = [];
+    let league_ids_eu = [39,140,61,136,78]; // 5 major leagus
+    let league_ids_asian = [98,292,169]; // J, K, C
+    let league_ids_special = [1]; // world cup
+    league_ids = league_ids.concat(league_ids_eu);
+    league_ids = league_ids.concat(league_ids_special);
+    league_ids = league_ids.concat(league_ids_asian);
+    console.log(league_ids);
+    prepareAllFixureData(league_ids, '2022', leaguesContainer);
+}, {
+    scheduled: true,
+    timezone: 'America/Los_Angeles'
+});
+
 function start() {
-    init();
-    allGamesRequest.start();
-    runTimeMonitor.start();
+    // init();
+    // allGamesRequest.start();
+    // runTimeMonitor.start();
+    allDataRequest.start();
+}
+
+function getFixtureDataRequest(id, season) {
+    var option = {
+        method: 'GET',
+        url: 'https://api-football-v1.p.rapidapi.com/v3/fixtures',
+        params: {league: id, season: season},
+        headers: {
+            'x-rapidapi-host': 'api-football-v1.p.rapidapi.com',
+            'x-rapidapi-key': '28fc80e178mshdff1cc6efb6539cp119f94jsn1a2811635bf8'
+        }
+    };
+    return option;
+}
+
+async function prepareAllFixureData(leagues, season, databaseContainer) {
+    const delay = (ms = 1200) => new Promise((r) => setTimeout(r, ms));
+    const getInSeries = async (promises) => {
+        let results = [];
+        let count = 1;
+        for (let promise of promises) {
+            console.log('executing the request for leagues', count++);
+            await delay();
+            try {
+                const request_result = await axios.request(promise);
+                const leagueResult = {
+                    league: request_result.data.parameters.league,
+                    fixtures: request_result.data.response
+                };
+                const leagueDataInDB = await databaseContainer.items.query(`SELECT * from c WHERE c.league = '${leagueResult.league}'`).fetchAll();
+                if (leagueDataInDB.resources.length == 0) {
+                    const createdLeagueResponse = databaseContainer.items.create(leagueResult);
+                    console.log('createdLeagueResponse succeed');
+                } else if (leagueDataInDB.resources.length == 1) {
+                    let currentData = leagueDataInDB.resources[0];
+                    if (!leagueResult.fixtures && leagueResult.fixtures.length > 0) {
+                        currentData.fixtures = leagueResult.fixtures;
+                        const replaceLeagueResponse = databaseContainer.item(currentData.id, currentData.league).replace(currentData);
+                        console.log('replaceLeagueResponse succeed');
+                    }
+                }
+                console.log('executing success for:', count);
+            } catch (e) {
+                console.log('executing error:', count);
+                console.log(e);
+            }
+        }
+        return results;
+    };
+    const promises = leagues.map((league_id) => {
+        console.log(league_id);
+        return getFixtureDataRequest(league_id, season);
+    });
+    try {
+        const results = await getInSeries(promises);
+        return results;
+    } catch (e) {
+        console.log(e);
+        global.monitor.isTodayGameFetching = false;
+    }
+    return null;
 }
 
 async function prepareAllGamesData(startPage, endPage) {
@@ -184,11 +263,6 @@ async function prepareAllGamesData(startPage, endPage) {
             await delay();
             try {
                 const request_result = await axios.request(promise);
-                // promise.then(response => {
-                //     console.log('request called for page', count);
-                //     results.push(response);
-                // })
-                // results.push(await delay().then(() => promise));
                 results.push(request_result);
                 console.log('executing success for:', count);
             } catch (e) {
