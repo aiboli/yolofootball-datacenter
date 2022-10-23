@@ -15,6 +15,7 @@ const database = client.database(config.databaseId);
 const container = database.container(config.containerId);
 const fixturesContainer = database.container('fixtures');
 const leaguesContainer = database.container('leagues');
+const oddsContainer = database.container('odds');
 
 const runTimeMonitor = nodeCron.schedule("*/3 * * * *", async function jobYouNeedToExecute() {
     // global.monitor = {
@@ -170,7 +171,6 @@ const allGamesRequest = nodeCron.schedule("30 1,12 * * *", async function jobYou
 });
 
 const allDataRequest = nodeCron.schedule("1 1,10,19 * * *", async function jobYouNeedToExecute() {
-
     let league_ids = [];
     let league_ids_eu = [39,140,61,136,78]; // 5 major leagus
     let league_ids_asian = [98,292,169]; // J, K, C
@@ -178,8 +178,21 @@ const allDataRequest = nodeCron.schedule("1 1,10,19 * * *", async function jobYo
     league_ids = league_ids.concat(league_ids_eu);
     league_ids = league_ids.concat(league_ids_special);
     league_ids = league_ids.concat(league_ids_asian);
-    console.log(league_ids);
     prepareAllFixureData(league_ids, '2022', leaguesContainer);
+}, {
+    scheduled: true,
+    timezone: 'America/Los_Angeles'
+});
+
+const allOddsRequest = nodeCron.schedule("43 1,10,18 * * *", async function jobYouNeedToExecute() {
+    let league_ids = [];
+    let league_ids_eu = [39,140,61,136,78]; // 5 major leagus
+    let league_ids_asian = [98,292,169]; // J, K, C
+    let league_ids_special = [1]; // world cup
+    league_ids = league_ids.concat(league_ids_eu);
+    league_ids = league_ids.concat(league_ids_special);
+    league_ids = league_ids.concat(league_ids_asian);
+    prepareAllOddsData(league_ids, '2022', oddsContainer);
 }, {
     scheduled: true,
     timezone: 'America/Los_Angeles'
@@ -190,6 +203,7 @@ function start() {
     // allGamesRequest.start();
     // runTimeMonitor.start();
     allDataRequest.start();
+    allOddsRequest.start();
 }
 
 function getFixtureDataRequest(id, season) {
@@ -197,6 +211,19 @@ function getFixtureDataRequest(id, season) {
         method: 'GET',
         url: 'https://api-football-v1.p.rapidapi.com/v3/fixtures',
         params: {league: id, season: season},
+        headers: {
+            'x-rapidapi-host': 'api-football-v1.p.rapidapi.com',
+            'x-rapidapi-key': '28fc80e178mshdff1cc6efb6539cp119f94jsn1a2811635bf8'
+        }
+    };
+    return option;
+}
+
+function getOddsDataRequest(id, season, page = 1) {
+    var option = {
+        method: 'GET',
+        url: 'https://api-football-v1.p.rapidapi.com/v3/odds',
+        params: {league: id, page: page, season: season, bookmaker: '8'},
         headers: {
             'x-rapidapi-host': 'api-football-v1.p.rapidapi.com',
             'x-rapidapi-key': '28fc80e178mshdff1cc6efb6539cp119f94jsn1a2811635bf8'
@@ -292,6 +319,112 @@ async function prepareAllGamesData(startPage, endPage) {
     });
     try {
         const results = await getInSeries(promises);
+        return results;
+    } catch (e) {
+        console.log(e);
+        global.monitor.isTodayGameFetching = false;
+    }
+    return null;
+}
+
+async function prepareAllOddsData(leagues, season, databaseContainer) {
+    const delay = (ms = 1200) => new Promise((r) => setTimeout(r, ms));
+    const getInSeries = async (promises) => {
+        let results = [];
+        let count = 1;
+        for (let promise of promises) {
+            console.log('executing the request for odds', count++);
+            await delay();
+            try {
+                const request_result = await axios.request(promise);
+                if (request_result && request_result.data && request_result.data.parameters) {
+                    const oddsResult = {
+                        league: request_result.data.parameters.league,
+                        season: request_result.data.parameters.season,
+                        odds: request_result.data.response
+                    };
+                    const totalPage = request_result.data.paging.total;
+                    if (totalPage == 1) {
+                        const oddsDataInDB = await databaseContainer.items.query(`SELECT * from c WHERE c.league = '${oddsResult.league}'`).fetchAll();
+                        if (oddsDataInDB.resources.length == 0) {
+                            const createdOddsResponse = databaseContainer.items.create(oddsResult);
+                            console.log('createdOddsResponse succeed');
+                        } else if (oddsDataInDB.resources.length == 1) {
+                            let currentData = oddsDataInDB.resources[0];
+                            if (!oddsResult.fixtures && oddsResult.odds.length > 0) {
+                                currentData.odds = leagueResult.odds;
+                                const replaceOddsResponse = databaseContainer.item(currentData.id, currentData.league).replace(currentData);
+                                console.log('replaceOddsResponse succeed');
+                            }
+                        }
+                    } else {
+                        let multiplePagesResult = await prepareSubOddsData(oddsResult.league, oddsResult.season, 2, totalPage);
+                        oddsResult.odds = oddsResult.odds.concat(multiplePagesResult);
+                        const oddsDataInDB = await databaseContainer.items.query(`SELECT * from c WHERE c.league = '${oddsResult.league}'`).fetchAll();
+                        if (oddsDataInDB.resources.length == 0) {
+                            const createdOddsResponse = databaseContainer.items.create(oddsResult);
+                            console.log('createdOddsResponse succeed');
+                        } else if (oddsDataInDB.resources.length == 1) {
+                            let currentData = oddsDataInDB.resources[0];
+                            if (!oddsResult.fixtures && oddsResult.odds.length > 0) {
+                                currentData.odds = leagueResult.odds;
+                                const replaceOddsResponse = databaseContainer.item(currentData.id, currentData.league).replace(currentData);
+                                console.log('replaceOddsResponse succeed');
+                            }
+                        }
+                    }
+                }
+               
+                console.log('executing success for:', count);
+            } catch (e) {
+                console.log('executing error:', count);
+                console.log(e);
+            }
+        }
+        return results;
+    };
+    const getInParallel = async (promises) => Promise.all(promises);
+    const promises = leagues.map((id) => {
+        return getOddsDataRequest(id, season);
+    });
+    try {
+        console.log(promises);
+        const results = await getInSeries(promises);
+        return results;
+    } catch (e) {
+        console.log(e);
+        global.monitor.isTodayGameFetching = false;
+    }
+    return null;
+}
+
+async function prepareSubOddsData(league, season, start, end) {
+    const delay = (ms = 1200) => new Promise((r) => setTimeout(r, ms));
+    const getInSeries = async (promises) => {
+        let results = [];
+        let count = 1;
+        for (let promise of promises) {
+            console.log('executing the request for odds', count++);
+            await delay();
+            try {
+                const request_result = await axios.request(promise);
+                if (request_result.data && request_result.data.response) {
+                    results.push(request_result.data.response);
+                }
+                console.log('executing success for:', count);
+            } catch (e) {
+                console.log('executing error:', count);
+                console.log(e);
+            }
+        }
+        return results;
+    };
+    const pageArray = [];
+    for (let i = start; i <= end; i++) {
+        pageArray.push(getOddsDataRequest(league, season, i));
+    }
+    try {
+        const results = await getInSeries(pageArray);
         return results;
     } catch (e) {
         console.log(e);
