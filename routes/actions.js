@@ -63,12 +63,34 @@ router.get('/prepareData', async function (req, res, next) {
     const leaguesContainer = database.container(config.containerId);
     const oddsContainer = database.container('odds');
 
-    const query = "SELECT * FRON c";
+    const query = "SELECT * FROM c WHERE c.league = '169'";
     const allLeagues = await leaguesContainer.items.query(query).fetchAll();
-    let leagueData = allLeagues.resources;
+    let leagueData = allLeagues.resources[0];
+    // get only valid fixtures
+    let leagueFixtureMap = {};
+    for (let i = 0; i < leagueData.fixtures.length; i++) {
+        let currentFixture = leagueData.fixtures[i];
+        if (currentFixture.fixture.status.short === 'NS') {
+            leagueFixtureMap[currentFixture.fixture.id] = currentFixture;
+        }
+    }
     const alloddsContainer = await oddsContainer.items.query(query).fetchAll();
-    let oddsData = alloddsContainer.resources;
-    return res.send(200);
+    let oddsData = alloddsContainer.resources[0];
+    for (let i = 0; i < oddsData.odds.length; i++) {
+        let currentOdds = oddsData.odds[i];
+        if (leagueFixtureMap[currentOdds.fixture.id]) {
+            let odds = currentOdds.bookmakers[0];
+            leagueFixtureMap[currentOdds.fixture.id].odds = odds;
+        }
+    }
+
+    for (let key of Object.keys(leagueFixtureMap)) {
+        if (!leagueFixtureMap[key].odds) {
+            delete leagueFixtureMap[key];
+        }
+    }
+    console.log(leagueFixtureMap);
+    return res.status(200).json(leagueFixtureMap);
 });
 
 router.post('/bulkUpdateOrder', async function (req, res, next) {
