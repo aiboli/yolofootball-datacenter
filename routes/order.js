@@ -32,11 +32,19 @@ router.post('/orders', async function (req, res, next) {
     const database = client.database(config.databaseId);
     const container = database.container(config.containerId);
     let postData = req.body;
-    const query = {
+    let query = {
         query: `SELECT * 
         FROM c
         WHERE c.id IN ("${postData.ids.join('","')}")`
     };
+
+    if (req.body.status) {
+        query.query = query.query + ` AND c.status = "${req.body.status}"`
+    }
+
+    if (req.body.created_by) {
+        query.query = query.query + ` AND c.created_by = "${req.body.created_by}"`
+    }
     console.log(query.query);
     var dates = await container.items.query(query).fetchAll();
     var orderData = dates.resources;
