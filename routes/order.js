@@ -38,8 +38,8 @@ router.post('/orders', async function (req, res, next) {
         WHERE c.id IN ("${postData.ids.join('","')}")`
     };
 
-    if (req.body.status) {
-        query.query = query.query + ` AND c.status = "${req.body.status}"`
+    if (req.body.state) {
+        query.query = query.query + ` AND c.state = "${req.body.state}"`
     }
 
     if (req.body.created_by) {
