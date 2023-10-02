@@ -172,13 +172,13 @@ const allGamesRequest = nodeCron.schedule("30 1,12 * * *", async function jobYou
 
 const allDataRequest = nodeCron.schedule("1 1,10,19 * * *", async function jobYouNeedToExecute() {
     let league_ids = [];
-    let league_ids_eu = [39,140,61,136,78]; // 5 major leagus
-    let league_ids_asian = [98,292,169]; // J, K, C
+    let league_ids_eu = [39, 140, 61, 136, 78]; // 5 major leagus
+    let league_ids_asian = [98, 292, 169]; // J, K, C
     let league_ids_special = [1]; // world cup
     league_ids = league_ids.concat(league_ids_eu);
     league_ids = league_ids.concat(league_ids_special);
     league_ids = league_ids.concat(league_ids_asian);
-    prepareAllFixureData(league_ids, '2022', leaguesContainer);
+    prepareAllFixureData(league_ids, '2023', leaguesContainer);
 }, {
     scheduled: true,
     timezone: 'America/Los_Angeles'
@@ -186,13 +186,13 @@ const allDataRequest = nodeCron.schedule("1 1,10,19 * * *", async function jobYo
 
 const allOddsRequest = nodeCron.schedule("43 1,10,18 * * *", async function jobYouNeedToExecute() {
     let league_ids = [];
-    let league_ids_eu = [39,140,61,136,78]; // 5 major leagus
-    let league_ids_asian = [98,292,169]; // J, K, C
+    let league_ids_eu = [39, 140, 61, 136, 78]; // 5 major leagus
+    let league_ids_asian = [98, 292, 169]; // J, K, C
     let league_ids_special = [1]; // world cup
     league_ids = league_ids.concat(league_ids_eu);
     league_ids = league_ids.concat(league_ids_special);
     league_ids = league_ids.concat(league_ids_asian);
-    prepareAllOddsData(league_ids, '2022', oddsContainer);
+    prepareAllOddsData(league_ids, '2023', oddsContainer);
 }, {
     scheduled: true,
     timezone: 'America/Los_Angeles'
@@ -210,7 +210,7 @@ function getFixtureDataRequest(id, season) {
     var option = {
         method: 'GET',
         url: 'https://api-football-v1.p.rapidapi.com/v3/fixtures',
-        params: {league: id, season: season},
+        params: { league: id, season: season },
         headers: {
             'x-rapidapi-host': 'api-football-v1.p.rapidapi.com',
             'x-rapidapi-key': '28fc80e178mshdff1cc6efb6539cp119f94jsn1a2811635bf8'
@@ -223,7 +223,7 @@ function getOddsDataRequest(id, season, page = 1) {
     var option = {
         method: 'GET',
         url: 'https://api-football-v1.p.rapidapi.com/v3/odds',
-        params: {league: id, page: page, season: season, bookmaker: '8'},
+        params: { league: id, page: page, season: season, bookmaker: '8' },
         headers: {
             'x-rapidapi-host': 'api-football-v1.p.rapidapi.com',
             'x-rapidapi-key': '28fc80e178mshdff1cc6efb6539cp119f94jsn1a2811635bf8'
@@ -374,7 +374,7 @@ async function prepareAllOddsData(leagues, season, databaseContainer) {
                         }
                     }
                 }
-               
+
                 console.log('executing success for:', count);
             } catch (e) {
                 console.log('executing error:', count);
