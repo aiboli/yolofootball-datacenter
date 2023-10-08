@@ -172,9 +172,9 @@ const allGamesRequest = nodeCron.schedule("30 1,12 * * *", async function jobYou
 
 const allDataRequest = nodeCron.schedule("1 1,10,19 * * *", async function jobYouNeedToExecute() {
     let league_ids = [];
-    let league_ids_eu = [39, 140, 61, 136, 78]; // 5 major leagus
-    let league_ids_asian = [98, 292, 169]; // J, K, C
-    let league_ids_special = [1]; // world cup
+    let league_ids_eu = [39]; // 5 major leagus [39, 140, 61, 136, 78]
+    let league_ids_asian = []; // J, K, C 98, 292, 169
+    let league_ids_special = []; // world cup
     league_ids = league_ids.concat(league_ids_eu);
     league_ids = league_ids.concat(league_ids_special);
     league_ids = league_ids.concat(league_ids_asian);
@@ -186,9 +186,9 @@ const allDataRequest = nodeCron.schedule("1 1,10,19 * * *", async function jobYo
 
 const allOddsRequest = nodeCron.schedule("43 1,10,18 * * *", async function jobYouNeedToExecute() {
     let league_ids = [];
-    let league_ids_eu = [39, 140, 61, 136, 78]; // 5 major leagus
-    let league_ids_asian = [98, 292, 169]; // J, K, C
-    let league_ids_special = [1]; // world cup
+    let league_ids_eu = [39]; // 5 major leagus [39, 140, 61, 136, 78]
+    let league_ids_asian = []; // J, K, C 98, 292, 169
+    let league_ids_special = []; // world cup
     league_ids = league_ids.concat(league_ids_eu);
     league_ids = league_ids.concat(league_ids_special);
     league_ids = league_ids.concat(league_ids_asian);
@@ -202,6 +202,7 @@ function start() {
     // init();
     // allGamesRequest.start();
     // runTimeMonitor.start();
+    // ---------------------
     allDataRequest.start();
     allOddsRequest.start();
 }
@@ -258,9 +259,9 @@ async function prepareAllFixureData(leagues, season, databaseContainer) {
                         console.log('replaceLeagueResponse succeed');
                     }
                 }
-                console.log('executing success for:', count);
+                console.log('executing success for all fixture data:', count);
             } catch (e) {
-                console.log('executing error:', count);
+                console.log('executing error fixture data:', count);
                 console.log(e);
             }
         }
@@ -291,9 +292,9 @@ async function prepareAllGamesData(startPage, endPage) {
             try {
                 const request_result = await axios.request(promise);
                 results.push(request_result);
-                console.log('executing success for:', count);
+                console.log('executing success for all game data:', count);
             } catch (e) {
-                console.log('executing error:', count);
+                console.log('executing error  all game data:', count);
                 console.log(e);
             }
         }
@@ -352,7 +353,7 @@ async function prepareAllOddsData(leagues, season, databaseContainer) {
                         } else if (oddsDataInDB.resources.length == 1) {
                             let currentData = oddsDataInDB.resources[0];
                             if (!oddsResult.fixtures && oddsResult.odds.length > 0) {
-                                currentData.odds = leagueResult.odds;
+                                currentData.odds = oddsResult.odds;
                                 const replaceOddsResponse = databaseContainer.item(currentData.id, currentData.league).replace(currentData);
                                 console.log('replaceOddsResponse succeed');
                             }
@@ -361,13 +362,14 @@ async function prepareAllOddsData(leagues, season, databaseContainer) {
                         let multiplePagesResult = await prepareSubOddsData(oddsResult.league, oddsResult.season, 2, totalPage);
                         oddsResult.odds = oddsResult.odds.concat(multiplePagesResult);
                         const oddsDataInDB = await databaseContainer.items.query(`SELECT * from c WHERE c.league = '${oddsResult.league}'`).fetchAll();
+                        console.log(oddsDataInDB);
                         if (oddsDataInDB.resources.length == 0) {
                             const createdOddsResponse = databaseContainer.items.create(oddsResult);
                             console.log('createdOddsResponse succeed');
                         } else if (oddsDataInDB.resources.length == 1) {
                             let currentData = oddsDataInDB.resources[0];
                             if (!oddsResult.fixtures && oddsResult.odds.length > 0) {
-                                currentData.odds = leagueResult.odds;
+                                currentData.odds = oddsResult.odds;
                                 const replaceOddsResponse = databaseContainer.item(currentData.id, currentData.league).replace(currentData);
                                 console.log('replaceOddsResponse succeed');
                             }
@@ -375,9 +377,9 @@ async function prepareAllOddsData(leagues, season, databaseContainer) {
                     }
                 }
 
-                console.log('executing success for:', count);
+                console.log('executing success for odds data:', count);
             } catch (e) {
-                console.log('executing error:', count);
+                console.log('executing error odds data:', count);
                 console.log(e);
             }
         }
@@ -404,16 +406,16 @@ async function prepareSubOddsData(league, season, start, end) {
         let results = [];
         let count = 1;
         for (let promise of promises) {
-            console.log('executing the request for odds', count++);
+            console.log('executing the request for sub odds', count++);
             await delay();
             try {
                 const request_result = await axios.request(promise);
                 if (request_result.data && request_result.data.response) {
                     results.push(request_result.data.response);
                 }
-                console.log('executing success for:', count);
+                console.log('executing success for sub odds data:', count);
             } catch (e) {
-                console.log('executing error:', count);
+                console.log('executing error sub odds:', count);
                 console.log(e);
             }
         }
