@@ -5,10 +5,9 @@ const CosmosClient = require("@azure/cosmos").CosmosClient;
 // const nodeMailer = require('nodemailer');
 const config = {
   endpoint: "https://yolofootball-database.documents.azure.com:443/",
-  key:
-    "hOicNBuPcYclHNG3UHZA9zGKhXp9zrTeoxbagVWBWRql4nXsEbOykJkyxfKMA2cEOGuwvMAMIES8Ssg81bppFA==",
+  key: "hOicNBuPcYclHNG3UHZA9zGKhXp9zrTeoxbagVWBWRql4nXsEbOykJkyxfKMA2cEOGuwvMAMIES8Ssg81bppFA==",
   databaseId: "yolofootball",
-  containerId: "games"
+  containerId: "games",
 };
 console.log("connect to cosmosdb");
 const client = new CosmosClient({ endpoint: config.endpoint, key: config.key });
@@ -72,8 +71,9 @@ const allGamesRequest = nodeCron.schedule(
         params: { date: currentDateString, timezone: "America/Los_Angeles" },
         headers: {
           "x-rapidapi-host": "api-football-v1.p.rapidapi.com",
-          "x-rapidapi-key": "28fc80e178mshdff1cc6efb6539cp119f94jsn1a2811635bf8"
-        }
+          "x-rapidapi-key":
+            "28fc80e178mshdff1cc6efb6539cp119f94jsn1a2811635bf8",
+        },
       };
       var response;
       try {
@@ -87,7 +87,7 @@ const allGamesRequest = nodeCron.schedule(
       let totalPage = response.data.paging.total;
       let objectDef = {
         date: gamedate,
-        games: response.data.response
+        games: response.data.response,
       };
       let restPreparedData = await prepareAllGamesData(1, totalPage);
       let finalData = buildAllGamesData(objectDef, restPreparedData);
@@ -113,17 +113,18 @@ const allGamesRequest = nodeCron.schedule(
         url: "https://api-football-v1.p.rapidapi.com/v3/fixtures",
         params: {
           date: helper.getDateString(),
-          timezone: "America/Los_Angeles"
+          timezone: "America/Los_Angeles",
         },
         headers: {
           "x-rapidapi-host": "api-football-v1.p.rapidapi.com",
-          "x-rapidapi-key": "28fc80e178mshdff1cc6efb6539cp119f94jsn1a2811635bf8"
-        }
+          "x-rapidapi-key":
+            "28fc80e178mshdff1cc6efb6539cp119f94jsn1a2811635bf8",
+        },
       };
       var fixturesResponse = await axios.request(fixturesOptions);
       var fixturesObject = {
         date: fixturesResponse.data.parameters.date,
-        fixtures: fixturesResponse.data.response
+        fixtures: fixturesResponse.data.response,
       };
       global.testfixtures = fixturesObject;
       console.log("store data in database");
@@ -140,17 +141,18 @@ const allGamesRequest = nodeCron.schedule(
         url: "https://api-football-v1.p.rapidapi.com/v3/fixtures",
         params: {
           date: helper.getDateString(),
-          timezone: "America/Los_Angeles"
+          timezone: "America/Los_Angeles",
         },
         headers: {
           "x-rapidapi-host": "api-football-v1.p.rapidapi.com",
-          "x-rapidapi-key": "28fc80e178mshdff1cc6efb6539cp119f94jsn1a2811635bf8"
-        }
+          "x-rapidapi-key":
+            "28fc80e178mshdff1cc6efb6539cp119f94jsn1a2811635bf8",
+        },
       };
       var fixturesResponse = await axios.request(fixturesOptions);
       var fixturesObject = {
         date: fixturesResponse.data.parameters.date,
-        fixtures: fixturesResponse.data.response
+        fixtures: fixturesResponse.data.response,
       };
       global.testfixtures = fixturesObject;
       console.log("store data in database");
@@ -190,7 +192,7 @@ const allGamesRequest = nodeCron.schedule(
   },
   {
     scheduled: false,
-    timezone: "America/Los_Angeles"
+    timezone: "America/Los_Angeles",
   }
 );
 
@@ -208,13 +210,13 @@ const allDataRequest = nodeCron.schedule(
   },
   {
     scheduled: true,
-    timezone: "America/Los_Angeles"
+    timezone: "America/Los_Angeles",
   }
 );
 
 const allOddsRequest = nodeCron.schedule(
   "43 1,10,18 * * *",
-  //"15 8 * * * *",
+  // "20 19 * * * *", test time
   async function jobYouNeedToExecute() {
     let league_ids = [];
     let league_ids_eu = [39]; // 5 major leagus [39, 140, 61, 136, 78]
@@ -227,7 +229,7 @@ const allOddsRequest = nodeCron.schedule(
   },
   {
     scheduled: true,
-    timezone: "America/Los_Angeles"
+    timezone: "America/Los_Angeles",
   }
 );
 
@@ -247,8 +249,8 @@ function getFixtureDataRequest(id, season) {
     params: { league: id, season: season },
     headers: {
       "x-rapidapi-host": "api-football-v1.p.rapidapi.com",
-      "x-rapidapi-key": "28fc80e178mshdff1cc6efb6539cp119f94jsn1a2811635bf8"
-    }
+      "x-rapidapi-key": "28fc80e178mshdff1cc6efb6539cp119f94jsn1a2811635bf8",
+    },
   };
   return option;
 }
@@ -260,15 +262,15 @@ function getOddsDataRequest(id, season, page = 1) {
     params: { league: id, page: page, season: season, bookmaker: "8" },
     headers: {
       "x-rapidapi-host": "api-football-v1.p.rapidapi.com",
-      "x-rapidapi-key": "28fc80e178mshdff1cc6efb6539cp119f94jsn1a2811635bf8"
-    }
+      "x-rapidapi-key": "28fc80e178mshdff1cc6efb6539cp119f94jsn1a2811635bf8",
+    },
   };
   return option;
 }
 
 async function prepareAllFixureData(leagues, season, databaseContainer) {
-  const delay = (ms = 1200) => new Promise(r => setTimeout(r, ms));
-  const getInSeries = async promises => {
+  const delay = (ms = 1200) => new Promise((r) => setTimeout(r, ms));
+  const getInSeries = async (promises) => {
     let results = [];
     let count = 1;
     for (let promise of promises) {
@@ -278,15 +280,14 @@ async function prepareAllFixureData(leagues, season, databaseContainer) {
         const request_result = await axios.request(promise);
         const leagueResult = {
           league: request_result.data.parameters.league,
-          fixtures: request_result.data.response
+          fixtures: request_result.data.response,
         };
         const leagueDataInDB = await databaseContainer.items
           .query(`SELECT * from c WHERE c.league = '${leagueResult.league}'`)
           .fetchAll();
         if (leagueDataInDB.resources.length == 0) {
-          const createdLeagueResponse = databaseContainer.items.create(
-            leagueResult
-          );
+          const createdLeagueResponse =
+            databaseContainer.items.create(leagueResult);
           console.log("createdLeagueResponse succeed");
         } else if (leagueDataInDB.resources.length == 1) {
           let currentData = leagueDataInDB.resources[0];
@@ -306,7 +307,7 @@ async function prepareAllFixureData(leagues, season, databaseContainer) {
     }
     return results;
   };
-  const promises = leagues.map(league_id => {
+  const promises = leagues.map((league_id) => {
     console.log(league_id);
     return getFixtureDataRequest(league_id, season);
   });
@@ -321,8 +322,8 @@ async function prepareAllFixureData(leagues, season, databaseContainer) {
 }
 
 async function prepareAllGamesData(startPage, endPage) {
-  const delay = (ms = 1200) => new Promise(r => setTimeout(r, ms));
-  const getInSeries = async promises => {
+  const delay = (ms = 1200) => new Promise((r) => setTimeout(r, ms));
+  const getInSeries = async (promises) => {
     let results = [];
     let count = 1;
     for (let promise of promises) {
@@ -339,12 +340,12 @@ async function prepareAllGamesData(startPage, endPage) {
     }
     return results;
   };
-  const getInParallel = async promises => Promise.all(promises);
+  const getInParallel = async (promises) => Promise.all(promises);
   const pageArray = [];
   for (let i = startPage + 1; i <= endPage; i++) {
     pageArray.push(i);
   }
-  const promises = pageArray.map(page => {
+  const promises = pageArray.map((page) => {
     console.log(page);
     const thisOption = {
       method: "GET",
@@ -352,12 +353,12 @@ async function prepareAllGamesData(startPage, endPage) {
       params: {
         date: helper.getDateString(),
         timezone: "America/Los_Angeles",
-        page: page
+        page: page,
       },
       headers: {
         "x-rapidapi-host": "api-football-v1.p.rapidapi.com",
-        "x-rapidapi-key": "28fc80e178mshdff1cc6efb6539cp119f94jsn1a2811635bf8"
-      }
+        "x-rapidapi-key": "28fc80e178mshdff1cc6efb6539cp119f94jsn1a2811635bf8",
+      },
     };
     return thisOption;
   });
@@ -372,8 +373,8 @@ async function prepareAllGamesData(startPage, endPage) {
 }
 
 async function prepareAllOddsData(leagues, season, databaseContainer) {
-  const delay = (ms = 1200) => new Promise(r => setTimeout(r, ms));
-  const getInSeries = async promises => {
+  const delay = (ms = 1200) => new Promise((r) => setTimeout(r, ms));
+  const getInSeries = async (promises) => {
     let results = [];
     let count = 1;
     for (let promise of promises) {
@@ -389,7 +390,7 @@ async function prepareAllOddsData(leagues, season, databaseContainer) {
           const oddsResult = {
             league: request_result.data.parameters.league,
             season: request_result.data.parameters.season,
-            odds: request_result.data.response
+            odds: request_result.data.response,
           };
           const totalPage = request_result.data.paging.total;
           if (totalPage == 1) {
@@ -397,9 +398,8 @@ async function prepareAllOddsData(leagues, season, databaseContainer) {
               .query(`SELECT * from c WHERE c.league = '${oddsResult.league}'`)
               .fetchAll();
             if (oddsDataInDB.resources.length == 0) {
-              const createdOddsResponse = databaseContainer.items.create(
-                oddsResult
-              );
+              const createdOddsResponse =
+                databaseContainer.items.create(oddsResult);
               console.log("createdOddsResponse succeed");
             } else if (oddsDataInDB.resources.length == 1) {
               let currentData = oddsDataInDB.resources[0];
@@ -425,9 +425,8 @@ async function prepareAllOddsData(leagues, season, databaseContainer) {
               .fetchAll();
             console.log(oddsDataInDB);
             if (oddsDataInDB.resources.length == 0) {
-              const createdOddsResponse = databaseContainer.items.create(
-                oddsResult
-              );
+              const createdOddsResponse =
+                databaseContainer.items.create(oddsResult);
               console.log("createdOddsResponse succeed");
             } else if (oddsDataInDB.resources.length == 1) {
               let currentData = oddsDataInDB.resources[0];
@@ -450,8 +449,8 @@ async function prepareAllOddsData(leagues, season, databaseContainer) {
     }
     return results;
   };
-  const getInParallel = async promises => Promise.all(promises);
-  const promises = leagues.map(id => {
+  const getInParallel = async (promises) => Promise.all(promises);
+  const promises = leagues.map((id) => {
     return getOddsDataRequest(id, season);
   });
   try {
@@ -466,8 +465,8 @@ async function prepareAllOddsData(leagues, season, databaseContainer) {
 }
 
 async function prepareSubOddsData(league, season, start, end) {
-  const delay = (ms = 1200) => new Promise(r => setTimeout(r, ms));
-  const getInSeries = async promises => {
+  const delay = (ms = 1200) => new Promise((r) => setTimeout(r, ms));
+  const getInSeries = async (promises) => {
     let results = [];
     let count = 1;
     for (let promise of promises) {
@@ -476,7 +475,7 @@ async function prepareSubOddsData(league, season, start, end) {
       try {
         const request_result = await axios.request(promise);
         if (request_result.data && request_result.data.response) {
-          results.push(request_result.data.response);
+          results = results.concat(request_result.data.response);
         }
         console.log("executing success for sub odds data:", count);
       } catch (e) {
@@ -512,9 +511,9 @@ function buildAllGamesData(originalCall, resultsArray) {
 }
 
 function filterGames(games) {
-  var filteredGames = games.filter(game => {
+  var filteredGames = games.filter((game) => {
     var gameOddsProviders = game.bookmakers;
-    game.bookmakers = gameOddsProviders.filter(provider => {
+    game.bookmakers = gameOddsProviders.filter((provider) => {
       return filterSpecificOddsProvider(6, provider);
     });
     return game.bookmakers.length === 1;

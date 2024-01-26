@@ -4,19 +4,18 @@ const helper = require("../common/helper");
 const CosmosClient = require("@azure/cosmos").CosmosClient;
 
 /* GET home page. */
-router.get("/getGames", async function(req, res, next) {
+router.get("/getGames", async function (req, res, next) {
   //console.log(req);
   const config = {
     endpoint: "https://yolofootball-database.documents.azure.com:443/",
-    key:
-      "hOicNBuPcYclHNG3UHZA9zGKhXp9zrTeoxbagVWBWRql4nXsEbOykJkyxfKMA2cEOGuwvMAMIES8Ssg81bppFA==",
+    key: "hOicNBuPcYclHNG3UHZA9zGKhXp9zrTeoxbagVWBWRql4nXsEbOykJkyxfKMA2cEOGuwvMAMIES8Ssg81bppFA==",
     databaseId: "yolofootball",
-    containerId: "games"
+    containerId: "games",
   };
   console.log("connect to cosmosdb");
   const client = new CosmosClient({
     endpoint: config.endpoint,
-    key: config.key
+    key: config.key,
   });
   const database = client.database(config.databaseId);
   const container = database.container(config.containerId);
@@ -35,19 +34,18 @@ router.get("/getGames", async function(req, res, next) {
   res.send(gamesData);
 });
 
-router.get("/getFixtures", async function(req, res, next) {
+router.get("/getFixtures", async function (req, res, next) {
   //console.log(req);
   const config = {
     endpoint: "https://yolofootball-database.documents.azure.com:443/",
-    key:
-      "hOicNBuPcYclHNG3UHZA9zGKhXp9zrTeoxbagVWBWRql4nXsEbOykJkyxfKMA2cEOGuwvMAMIES8Ssg81bppFA==",
+    key: "hOicNBuPcYclHNG3UHZA9zGKhXp9zrTeoxbagVWBWRql4nXsEbOykJkyxfKMA2cEOGuwvMAMIES8Ssg81bppFA==",
     databaseId: "yolofootball",
-    containerId: "fixtures"
+    containerId: "fixtures",
   };
   console.log("connect to cosmosdb");
   const client = new CosmosClient({
     endpoint: config.endpoint,
-    key: config.key
+    key: config.key,
   });
   const database = client.database(config.databaseId);
   const container = database.container(config.containerId);
@@ -67,17 +65,16 @@ router.get("/getFixtures", async function(req, res, next) {
   res.send(gamesData);
 });
 
-router.get("/prepareData", async function(req, res, next) {
+router.get("/prepareData", async function (req, res, next) {
   const config = {
     endpoint: "https://yolofootball-database.documents.azure.com:443/",
-    key:
-      "hOicNBuPcYclHNG3UHZA9zGKhXp9zrTeoxbagVWBWRql4nXsEbOykJkyxfKMA2cEOGuwvMAMIES8Ssg81bppFA==",
+    key: "hOicNBuPcYclHNG3UHZA9zGKhXp9zrTeoxbagVWBWRql4nXsEbOykJkyxfKMA2cEOGuwvMAMIES8Ssg81bppFA==",
     databaseId: "yolofootball",
-    containerId: "leagues"
+    containerId: "leagues",
   };
   const client = new CosmosClient({
     endpoint: config.endpoint,
-    key: config.key
+    key: config.key,
   });
   const database = client.database(config.databaseId);
   const leaguesContainer = database.container(config.containerId);
@@ -96,6 +93,7 @@ router.get("/prepareData", async function(req, res, next) {
   }
   const alloddsContainer = await oddsContainer.items.query(query).fetchAll();
   let oddsData = alloddsContainer.resources[0];
+  console.log(oddsData);
   for (let i = 0; i < oddsData.odds.length; i++) {
     let currentOdds = oddsData.odds[i];
     if (leagueFixtureMap[currentOdds.fixture.id]) {
@@ -113,17 +111,16 @@ router.get("/prepareData", async function(req, res, next) {
   return res.status(200).json(leagueFixtureMap);
 });
 
-router.post("/bulkUpdateOrder", async function(req, res, next) {
+router.post("/bulkUpdateOrder", async function (req, res, next) {
   const config = {
     endpoint: "https://yolofootball-database.documents.azure.com:443/",
-    key:
-      "hOicNBuPcYclHNG3UHZA9zGKhXp9zrTeoxbagVWBWRql4nXsEbOykJkyxfKMA2cEOGuwvMAMIES8Ssg81bppFA==",
+    key: "hOicNBuPcYclHNG3UHZA9zGKhXp9zrTeoxbagVWBWRql4nXsEbOykJkyxfKMA2cEOGuwvMAMIES8Ssg81bppFA==",
     databaseId: "yolofootball",
-    containerId: "orders"
+    containerId: "orders",
   };
   const client = new CosmosClient({
     endpoint: config.endpoint,
-    key: config.key
+    key: config.key,
   });
   const database = client.database(config.databaseId);
   const container = database.container(config.containerId);
@@ -134,7 +131,7 @@ router.post("/bulkUpdateOrder", async function(req, res, next) {
   const query = {
     query: `SELECT *
         FROM c
-        WHERE c.id IN ("${postData.ids.join('","')}")`
+        WHERE c.id IN ("${postData.ids.join('","')}")`,
   };
   console.log(query.query);
   var allOrders = await container.items.query(query).fetchAll();
@@ -142,7 +139,7 @@ router.post("/bulkUpdateOrder", async function(req, res, next) {
   var map = {};
   var fixtureToOrderMap = {};
   // check the order needs to be updated
-  var orders = orderData.filter(order => order.state == "pending");
+  var orders = orderData.filter((order) => order.state == "pending");
   console.log("order:", orders);
   // check each fiture result
   for (let i = 0; i < orders.length; i++) {
@@ -169,7 +166,7 @@ router.post("/bulkUpdateOrder", async function(req, res, next) {
   const fixtureQuery = {
     query: `
             SELECT * FROM c WHERE c.date IN ("${dates.join('","')}")
-        `
+        `,
   };
   const allFixtures = await fixtureContainer.items
     .query(fixtureQuery)
@@ -183,14 +180,14 @@ router.post("/bulkUpdateOrder", async function(req, res, next) {
     for (let j = 0; j < fixtureToUpdate.length; j++) {
       let thisFixture = fixtureToUpdate[j];
       let result = fixturesData.filter(
-        item => item.fixture.id == thisFixture
+        (item) => item.fixture.id == thisFixture
       )[0];
       // check the result
       let currentOrders = fixtureToOrderMap[thisFixture];
       console.log(currentOrders);
       console.log(result);
       await Promise.all(
-        currentOrders.map(async order => {
+        currentOrders.map(async (order) => {
           let bet_result = checkResult(order, result);
           console.log(bet_result);
           // update order first
@@ -207,7 +204,7 @@ router.post("/bulkUpdateOrder", async function(req, res, next) {
             const userQuery = {
               query: `
                             SELECT * FROM c WHERE c.user_name = "${userName}"
-                        `
+                        `,
             };
             const getUserResult = await userContainer.items
               .query(userQuery)
