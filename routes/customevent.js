@@ -20,6 +20,33 @@ router.get('/all', async function (req, res, next) {
     return res.status(200).send(orderData);
 });
 
+/**
+ * GET Single custom event by id
+ */
+router.get('/', async function (req, res, next) {
+    const eventId = req.query.id;
+    const config = {
+        endpoint: "https://yolofootball-database.documents.azure.com:443/",
+        key: "hOicNBuPcYclHNG3UHZA9zGKhXp9zrTeoxbagVWBWRql4nXsEbOykJkyxfKMA2cEOGuwvMAMIES8Ssg81bppFA==",
+        databaseId: "yolofootball",
+        containerId: "customevents"
+    };
+    const client = new CosmosClient({ endpoint: config.endpoint, key: config.key });
+    const database = client.database(config.databaseId);
+    const container = database.container(config.containerId);
+    let query = {
+        query: `SELECT * from c event WHERE event.id = "${eventId}"`
+    };
+    var getEvent = await container.items.query(query).fetchAll();
+    if (getEvent.resources && getEvent.resources.length > 0) {
+
+        return res.status(200).send(orderData);
+    }
+    var orderData = dates.resources[0];
+    global.testOrder = orderData;
+    return res.status(200).send(orderData);
+});
+
 // get customevents
 router.post('/customevents', async function (req, res, next) {
     const config = {
