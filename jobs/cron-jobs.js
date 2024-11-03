@@ -206,7 +206,10 @@ const allDataRequest = nodeCron.schedule(
     league_ids = league_ids.concat(league_ids_eu);
     league_ids = league_ids.concat(league_ids_special);
     league_ids = league_ids.concat(league_ids_asian);
-    prepareAllFixureData(league_ids, "2023", leaguesContainer);
+    const currentYear = new Date().getFullYear();
+    const currentMonth = new Date().getMonth() + 1; // getMonth() returns 0-11
+    const season = currentMonth < 6 ? currentYear - 1 : currentYear;
+    prepareAllFixureData(league_ids, season.toString(), leaguesContainer);
   },
   {
     scheduled: true,
@@ -225,7 +228,10 @@ const allOddsRequest = nodeCron.schedule(
     league_ids = league_ids.concat(league_ids_eu);
     league_ids = league_ids.concat(league_ids_special);
     league_ids = league_ids.concat(league_ids_asian);
-    prepareAllOddsData(league_ids, "2023", oddsContainer);
+    const currentYear = new Date().getFullYear();
+    const currentMonth = new Date().getMonth() + 1; // getMonth() returns 0-11
+    const season = currentMonth < 6 ? currentYear - 1 : currentYear;
+    prepareAllOddsData(league_ids, season.toString(), oddsContainer);
   },
   {
     scheduled: true,
