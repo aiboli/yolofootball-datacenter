@@ -197,7 +197,7 @@ const allGamesRequest = nodeCron.schedule(
 );
 
 const allDataRequest = nodeCron.schedule(
-  "1 1,10,19 * * *",
+  "1 1,10,15,19 * * *",
   async function jobYouNeedToExecute() {
     let league_ids = [];
     let league_ids_eu = [39]; // 5 major leagus [39, 140, 61, 136, 78]
@@ -218,7 +218,7 @@ const allDataRequest = nodeCron.schedule(
 );
 
 const allOddsRequest = nodeCron.schedule(
-  "43 1,10,18 * * *",
+  "43 1,10,15,18 * * *",
   // "20 19 * * * *", test time
   async function jobYouNeedToExecute() {
     let league_ids = [];
