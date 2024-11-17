@@ -22,3 +22,5 @@ router.get("/", async function (req, res, next) {
   let fixtures = allLeagues.resources[0].fixtures;
   return res.status(200).send(fixtures);
 });
+
+module.exports = router;
