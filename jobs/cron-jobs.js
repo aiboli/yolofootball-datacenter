@@ -2,6 +2,11 @@ const nodeCron = require("node-cron");
 const axios = require("axios").default;
 const helper = require("../common/helper");
 const CosmosClient = require("@azure/cosmos").CosmosClient;
+const Mailjet = require("node-mailjet");
+const mailjet = Mailjet.apiConnect(
+  "47f2ecec9e0ec377d318209a64a5818c",
+  "dd39e0b0a5ab1a1a034ce9c452cd7f0a"
+);
 // const nodeMailer = require('nodemailer');
 const config = {
   endpoint: "https://yolofootball-database.documents.azure.com:443/",
@@ -248,9 +253,39 @@ function start() {
   allOddsRequest.start();
   // --------test below---------
   // prepareAllFixureData([39], "2024", leaguesContainer);
+  // testEmail();
 }
 
-function test() {}
+// function testEmail() {
+//   const mailjetEmail = mailjet.post("send", { version: "v3.1" }).request({
+//     Messages: [
+//       {
+//         From: {
+//           Email: "admin@yolofootball.com",
+//           Name: "Yolofootball Official",
+//         },
+//         To: [
+//           {
+//             Email: "albertlabtech@gmail.com",
+//             Name: "Aibo Li",
+//           },
+//         ],
+//         Subject: "Cron Job for Fixtures Data is completed",
+//         TextPart: "The fictures data have been updated!!!",
+//         HTMLPart:
+//           '<h3>The fictures data have been updated!!! please check at <a href="https://yolofootball.com/">Yolofootball.com</a>!</h3><br />',
+//       },
+//     ],
+//   });
+
+//   mailjetEmail
+//     .then((result) => {
+//       console.log(result.body);
+//     })
+//     .catch((err) => {
+//       console.log(err.statusCode);
+//     });
+// }
 
 function getFixtureDataRequest(id, season) {
   var option = {
@@ -310,6 +345,34 @@ async function prepareAllFixureData(leagues, season, databaseContainer) {
           }
         }
         console.log("executing success for all fixture data:", count);
+        const mailjetEmail = mailjet.post("send", { version: "v3.1" }).request({
+          Messages: [
+            {
+              From: {
+                Email: "yolofootballdatacenter@gmail.com",
+                Name: "Yolofootball DC",
+              },
+              To: [
+                {
+                  Email: "albertlabtech@gmail.com",
+                  Name: "Aibo Li",
+                },
+              ],
+              Subject: "Cron Job for Fixtures Data is completed",
+              TextPart: "The fictures data have been updated!!!",
+              HTMLPart:
+                '<h3>The fictures data have been updated!!! please check at <a href="https://yolofootball.com/">Yolofootball.com</a>!</h3><br />',
+            },
+          ],
+        });
+
+        mailjetEmail
+          .then((result) => {
+            console.log(result.body);
+          })
+          .catch((err) => {
+            console.log(err.statusCode);
+          });
       } catch (e) {
         console.log("executing error fixture data:", count);
         console.log(e);
