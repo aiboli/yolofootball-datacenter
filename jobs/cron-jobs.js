@@ -243,10 +243,14 @@ function start() {
   // init();
   // allGamesRequest.start();
   // runTimeMonitor.start();
-  // ---------------------
+  // --------live below---------
   allDataRequest.start();
   allOddsRequest.start();
+  // --------test below---------
+  // prepareAllFixureData([39], "2024", leaguesContainer);
 }
+
+function test() {}
 
 function getFixtureDataRequest(id, season) {
   var option = {
@@ -297,7 +301,7 @@ async function prepareAllFixureData(leagues, season, databaseContainer) {
           console.log("createdLeagueResponse succeed");
         } else if (leagueDataInDB.resources.length == 1) {
           let currentData = leagueDataInDB.resources[0];
-          if (!leagueResult.fixtures && leagueResult.fixtures.length > 0) {
+          if (leagueResult.fixtures && leagueResult.fixtures.length > 0) {
             currentData.fixtures = leagueResult.fixtures;
             const replaceLeagueResponse = databaseContainer
               .item(currentData.id, currentData.league)
@@ -409,7 +413,7 @@ async function prepareAllOddsData(leagues, season, databaseContainer) {
               console.log("createdOddsResponse succeed");
             } else if (oddsDataInDB.resources.length == 1) {
               let currentData = oddsDataInDB.resources[0];
-              if (!oddsResult.fixtures && oddsResult.odds.length > 0) {
+              if (oddsResult.fixtures && oddsResult.odds.length > 0) {
                 currentData.odds = oddsResult.odds;
                 const replaceOddsResponse = databaseContainer
                   .item(currentData.id, currentData.league)
