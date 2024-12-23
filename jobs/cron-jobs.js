@@ -331,14 +331,15 @@ async function prepareAllFixureData(leagues, season, databaseContainer) {
           .query(`SELECT * from c WHERE c.league = '${leagueResult.league}'`)
           .fetchAll();
         if (leagueDataInDB.resources.length == 0) {
-          const createdLeagueResponse =
-            databaseContainer.items.create(leagueResult);
+          const createdLeagueResponse = await databaseContainer.items.create(
+            leagueResult
+          );
           console.log("createdLeagueResponse succeed");
         } else if (leagueDataInDB.resources.length == 1) {
           let currentData = leagueDataInDB.resources[0];
           if (leagueResult.fixtures && leagueResult.fixtures.length > 0) {
             currentData.fixtures = leagueResult.fixtures;
-            const replaceLeagueResponse = databaseContainer
+            const replaceLeagueResponse = await databaseContainer
               .item(currentData.id, currentData.league)
               .replace(currentData);
             console.log("replaceLeagueResponse succeed");
@@ -471,14 +472,15 @@ async function prepareAllOddsData(leagues, season, databaseContainer) {
               .query(`SELECT * from c WHERE c.league = '${oddsResult.league}'`)
               .fetchAll();
             if (oddsDataInDB.resources.length == 0) {
-              const createdOddsResponse =
-                databaseContainer.items.create(oddsResult);
+              const createdOddsResponse = await databaseContainer.items.create(
+                oddsResult
+              );
               console.log("createdOddsResponse succeed");
             } else if (oddsDataInDB.resources.length == 1) {
               let currentData = oddsDataInDB.resources[0];
               if (oddsResult.fixtures && oddsResult.odds.length > 0) {
                 currentData.odds = oddsResult.odds;
-                const replaceOddsResponse = databaseContainer
+                const replaceOddsResponse = await databaseContainer
                   .item(currentData.id, currentData.league)
                   .replace(currentData);
                 console.log("replaceOddsResponse succeed");
