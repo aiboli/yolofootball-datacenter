@@ -4,8 +4,8 @@ const helper = require("../common/helper");
 const CosmosClient = require("@azure/cosmos").CosmosClient;
 const Mailjet = require("node-mailjet");
 const mailjet = Mailjet.apiConnect(
-  "47f2ecec9e0ec377d318209a64a5818c",
-  "dd39e0b0a5ab1a1a034ce9c452cd7f0a"
+  "540e8d4b1864d6a55dec4d9e57d47c94",
+  "1ffb56f79c4502204176e16b21e7e782"
 );
 // const nodeMailer = require('nodemailer');
 const config = {
