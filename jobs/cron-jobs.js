@@ -360,7 +360,7 @@ async function prepareAllFixureData(leagues, season, databaseContainer) {
                 },
               ],
               Subject: "Cron Job for Fixtures Data is completed",
-              TextPart: "The fictures data have been updated!!!",
+              TextPart: "The fixtures data have been updated!!!",
               HTMLPart:
                 '<h3>The fictures data have been updated!!! please check at <a href="https://yolofootball.com/">Yolofootball.com</a>!</h3><br />',
             },
