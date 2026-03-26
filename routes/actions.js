@@ -3,22 +3,135 @@ var router = express.Router();
 const helper = require("../common/helper");
 const CosmosClient = require("@azure/cosmos").CosmosClient;
 
-/* GET home page. */
-router.get("/getGames", async function (req, res, next) {
-  //console.log(req);
+const createDatabaseClient = (containerId) => {
   const config = {
     endpoint: "https://yolofootball-database.documents.azure.com:443/",
     key: "hOicNBuPcYclHNG3UHZA9zGKhXp9zrTeoxbagVWBWRql4nXsEbOykJkyxfKMA2cEOGuwvMAMIES8Ssg81bppFA==",
     databaseId: "yolofootball",
-    containerId: "games",
+    containerId,
   };
-  console.log("connect to cosmosdb");
   const client = new CosmosClient({
     endpoint: config.endpoint,
     key: config.key,
   });
   const database = client.database(config.databaseId);
-  const container = database.container(config.containerId);
+
+  return {
+    database,
+    container: database.container(containerId),
+  };
+};
+
+const normalizeFixtureId = (fixtureId) => {
+  if (typeof fixtureId === "string" && fixtureId.includes("@")) {
+    return parseInt(fixtureId.split("@")[1], 10);
+  }
+
+  return parseInt(fixtureId, 10);
+};
+
+const normalizeFixtureState = (fixture) => {
+  const shortState = fixture?.fixture?.status?.short;
+  if (shortState === "FT") {
+    return "finished";
+  }
+  if (shortState === "NS") {
+    return "notstarted";
+  }
+  if (shortState === "CANC") {
+    return "canceled";
+  }
+
+  return "ongoing";
+};
+
+const getOrderSelections = (order) => {
+  if (Array.isArray(order.selections) && order.selections.length > 0) {
+    return order.selections.map((selection) => ({
+      ...selection,
+      fixture_id: normalizeFixtureId(selection.fixture_id),
+      bet_result: parseInt(selection.bet_result, 10),
+    }));
+  }
+
+  return [
+    {
+      fixture_id: normalizeFixtureId(order.fixture_id),
+      bet_result: parseInt(order.bet_result, 10),
+      fixture_state: order.fixture_state,
+    },
+  ];
+};
+
+const checkSelectionResult = (selection, fixture) => {
+  if (!fixture || fixture.fixture.status.short !== "FT") {
+    return "ongoing";
+  }
+
+  let homeGoals = fixture.goals.home;
+  let awayGoals = fixture.goals.away;
+  let result = homeGoals > awayGoals ? 0 : homeGoals == awayGoals ? 1 : 2;
+  let isWin = result == selection.bet_result;
+
+  return isWin ? "win" : "lost";
+};
+
+const evaluateOrder = (order, fixtureMap) => {
+  const selections = getOrderSelections(order);
+  const fixtureStates = [];
+  let hasOngoingSelection = false;
+
+  for (let i = 0; i < selections.length; i++) {
+    const selection = selections[i];
+    const fixture = fixtureMap[selection.fixture_id];
+    const selectionResult = checkSelectionResult(selection, fixture);
+    const fixtureState = fixture ? normalizeFixtureState(fixture) : "ongoing";
+
+    fixtureStates.push(fixtureState);
+    selection.fixture_state = fixtureState;
+
+    if (selectionResult === "lost") {
+      return {
+        state: "lost",
+        selections,
+        fixtureStates,
+      };
+    }
+
+    if (selectionResult === "ongoing") {
+      hasOngoingSelection = true;
+    }
+  }
+
+  if (hasOngoingSelection) {
+    return {
+      state: "ongoing",
+      selections,
+      fixtureStates,
+    };
+  }
+
+  return {
+    state: "win",
+    selections,
+    fixtureStates,
+  };
+};
+
+const creditWinningUser = async (userContainer, userName, winReturn) => {
+  const userQuery = {
+    query: `SELECT * FROM c WHERE c.user_name = "${userName}"`,
+  };
+  const getUserResult = await userContainer.items.query(userQuery).fetchAll();
+  if (getUserResult.resources && getUserResult.resources.length > 0) {
+    let currentUser = getUserResult.resources[0];
+    currentUser.account_balance = currentUser.account_balance + winReturn;
+    await userContainer.item(currentUser.id, currentUser.id).replace(currentUser);
+  }
+};
+
+router.get("/getGames", async function (req, res, next) {
+  const { container } = createDatabaseClient("games");
   let dates;
   if (req.query.date) {
     dates = await container.items
@@ -35,20 +148,7 @@ router.get("/getGames", async function (req, res, next) {
 });
 
 router.get("/getFixtures", async function (req, res, next) {
-  //console.log(req);
-  const config = {
-    endpoint: "https://yolofootball-database.documents.azure.com:443/",
-    key: "hOicNBuPcYclHNG3UHZA9zGKhXp9zrTeoxbagVWBWRql4nXsEbOykJkyxfKMA2cEOGuwvMAMIES8Ssg81bppFA==",
-    databaseId: "yolofootball",
-    containerId: "fixtures",
-  };
-  console.log("connect to cosmosdb");
-  const client = new CosmosClient({
-    endpoint: config.endpoint,
-    key: config.key,
-  });
-  const database = client.database(config.databaseId);
-  const container = database.container(config.containerId);
+  const { container } = createDatabaseClient("fixtures");
   let dates;
   if (req.query.date) {
     dates = await container.items
@@ -60,30 +160,17 @@ router.get("/getFixtures", async function (req, res, next) {
       .fetchAll();
   }
   var gamesData = dates.resources[0];
-  console.log(dates);
   global.testfixtures = gamesData;
   res.send(gamesData);
 });
 
 router.get("/prepareData", async function (req, res, next) {
-  const config = {
-    endpoint: "https://yolofootball-database.documents.azure.com:443/",
-    key: "hOicNBuPcYclHNG3UHZA9zGKhXp9zrTeoxbagVWBWRql4nXsEbOykJkyxfKMA2cEOGuwvMAMIES8Ssg81bppFA==",
-    databaseId: "yolofootball",
-    containerId: "leagues",
-  };
-  const client = new CosmosClient({
-    endpoint: config.endpoint,
-    key: config.key,
-  });
-  const database = client.database(config.databaseId);
-  const leaguesContainer = database.container(config.containerId);
+  const { database, container: leaguesContainer } = createDatabaseClient("leagues");
   const oddsContainer = database.container("odds");
 
   const query = "SELECT * FROM c WHERE c.league = '39'";
   const allLeagues = await leaguesContainer.items.query(query).fetchAll();
   let leagueData = allLeagues.resources[0];
-  // get only valid fixtures
   let leagueFixtureMap = {};
   for (let i = 0; i < leagueData.fixtures.length; i++) {
     let currentFixture = leagueData.fixtures[i];
@@ -93,7 +180,6 @@ router.get("/prepareData", async function (req, res, next) {
   }
   const alloddsContainer = await oddsContainer.items.query(query).fetchAll();
   let oddsData = alloddsContainer.resources[0];
-  console.log(oddsData);
   for (let i = 0; i < oddsData.odds.length; i++) {
     let currentOdds = oddsData.odds[i];
     if (leagueFixtureMap[currentOdds.fixture.id]) {
@@ -107,148 +193,58 @@ router.get("/prepareData", async function (req, res, next) {
       delete leagueFixtureMap[key];
     }
   }
-  console.log(leagueFixtureMap);
+
   return res.status(200).json(leagueFixtureMap);
 });
 
 router.post("/bulkUpdateOrder", async function (req, res, next) {
-  const config = {
-    endpoint: "https://yolofootball-database.documents.azure.com:443/",
-    key: "hOicNBuPcYclHNG3UHZA9zGKhXp9zrTeoxbagVWBWRql4nXsEbOykJkyxfKMA2cEOGuwvMAMIES8Ssg81bppFA==",
-    databaseId: "yolofootball",
-    containerId: "orders",
-  };
-  const client = new CosmosClient({
-    endpoint: config.endpoint,
-    key: config.key,
-  });
-  const database = client.database(config.databaseId);
-  const container = database.container(config.containerId);
+  const { database, container } = createDatabaseClient("orders");
   const userContainer = database.container("users");
   let postData = req.body;
-  console.log(postData);
-  const userName = req.body.user_name;
   const query = {
-    query: `SELECT *
-        FROM c
-        WHERE c.id IN ("${postData.ids.join('","')}")`,
+    query: `SELECT * FROM c WHERE c.id IN ("${postData.ids.join('","')}")`,
   };
-  console.log(query.query);
   var allOrders = await container.items.query(query).fetchAll();
   var orderData = allOrders.resources;
-  var map = {};
-  var fixtureToOrderMap = {};
-  // check the order needs to be updated
   var orders = orderData.filter((order) => order.state == "pending");
-  console.log("order:", orders);
-  // check each fiture result
-  for (let i = 0; i < orders.length; i++) {
-    var fixtureBigId = orders[i].fixture_id;
-    console.log(fixtureBigId);
-    let fixtureDate = fixtureBigId.split("@")[0];
-    console.log(fixtureDate);
-    let fixtureId = parseInt(fixtureBigId.split("@")[1]);
-    if (!map[fixtureDate]) {
-      map[fixtureDate] = [];
-    }
-    if (!fixtureToOrderMap[fixtureId]) {
-      fixtureToOrderMap[fixtureId] = [];
-    }
-    fixtureToOrderMap[fixtureId].push(orders[i]);
-    map[fixtureDate].includes(fixtureId)
-      ? null
-      : map[fixtureDate].push(fixtureId);
-  }
-  console.log(map);
-  console.log(fixtureToOrderMap);
-  const dates = Object.keys(map);
+
   const fixtureContainer = database.container("fixtures");
-  const fixtureQuery = {
-    query: `
-            SELECT * FROM c WHERE c.date IN ("${dates.join('","')}")
-        `,
-  };
-  const allFixtures = await fixtureContainer.items
-    .query(fixtureQuery)
-    .fetchAll();
-  console.log(allFixtures.resources.length);
-  // check each fixture result
-  for (let i = 0; i < allFixtures.resources.length; i++) {
-    let dateToUpdate = allFixtures.resources[i].date;
-    let fixtureToUpdate = map[dateToUpdate];
-    let fixturesData = allFixtures.resources[i].fixtures;
-    for (let j = 0; j < fixtureToUpdate.length; j++) {
-      let thisFixture = fixtureToUpdate[j];
-      let result = fixturesData.filter(
-        (item) => item.fixture.id == thisFixture
-      )[0];
-      // check the result
-      let currentOrders = fixtureToOrderMap[thisFixture];
-      console.log(currentOrders);
-      console.log(result);
-      await Promise.all(
-        currentOrders.map(async (order) => {
-          let bet_result = checkResult(order, result);
-          console.log(bet_result);
-          // update order first
-          if (bet_result == "win") {
-            order.is_win = true;
-            order.state = "completed";
-            order.fixture_state = "finished";
-            order.actual_return = order.win_return;
-            const updateOrderResult = await container
-              .item(order.id, order.id)
-              .replace(order);
-            console.log(updateOrderResult);
-            // update users returns
-            const userQuery = {
-              query: `
-                            SELECT * FROM c WHERE c.user_name = "${userName}"
-                        `,
-            };
-            const getUserResult = await userContainer.items
-              .query(userQuery)
-              .fetchAll();
-            if (getUserResult.resources && getUserResult.resources.length > 0) {
-              let currentUser = getUserResult.resources[0];
-              currentUser.account_balance =
-                currentUser.account_balance + order.win_return;
-              await userContainer
-                .item(currentUser.id, currentUser.id)
-                .replace(currentUser);
-              // return res.status(200).send(updateUserResult);
-            }
-          } else if (bet_result == "lost") {
-            order.is_win = false;
-            order.state = "completed";
-            order.fixture_state = "finished";
-            await container.item(order.id, order.id).replace(order);
-          }
-        })
-      );
+  const allFixtures = await fixtureContainer.items.query("SELECT * FROM c").fetchAll();
+  const fixtureMap = {};
+
+  allFixtures.resources.forEach((fixtureDocument) => {
+    (fixtureDocument.fixtures || []).forEach((fixture) => {
+      fixtureMap[fixture.fixture.id] = fixture;
+    });
+  });
+
+  for (let i = 0; i < orders.length; i++) {
+    let order = orders[i];
+    const evaluation = evaluateOrder(order, fixtureMap);
+
+    order.selections = evaluation.selections;
+    order.selection_count = evaluation.selections.length;
+    order.fixtures_ids = evaluation.selections.map((selection) => selection.fixture_id);
+    order.fixture_states = evaluation.fixtureStates;
+    order.fixture_state = evaluation.fixtureStates[0] || order.fixture_state;
+
+    if (evaluation.state === "win") {
+      order.is_win = true;
+      order.state = "completed";
+      order.actual_return = order.win_return;
+      await container.item(order.id, order.id).replace(order);
+      await creditWinningUser(userContainer, order.created_by, order.win_return);
+    } else if (evaluation.state === "lost") {
+      order.is_win = false;
+      order.state = "completed";
+      order.actual_return = 0;
+      await container.item(order.id, order.id).replace(order);
+    } else {
+      await container.item(order.id, order.id).replace(order);
     }
   }
-  return res.send(200);
+
+  return res.sendStatus(200);
 });
-/**
- * check result for order
- * @param {*} order
- * @param {*} fixture
- * @returns {string} win:, lost:, run:, ongoing:
- */
-function checkResult(order, fixture) {
-  console.log("----fixture----");
-  console.log(fixture);
-  // check this fixture status
-  if (fixture.fixture.status.short == "FT") {
-    let homeGoals = fixture.goals.home;
-    let awayGoals = fixture.goals.away;
-    let result = homeGoals > awayGoals ? 0 : homeGoals == awayGoals ? 1 : 2;
-    // check if user win:
-    let isWin = result == order.bet_result;
-    return isWin ? "win" : "lost";
-  }
-  return "ongoing";
-}
 
 module.exports = router;

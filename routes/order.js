@@ -4,7 +4,7 @@ var router = express.Router();
 
 const CosmosClient = require("@azure/cosmos").CosmosClient;
 
-router.get("/all", async function (req, res, next) {
+const getOrdersContainer = () => {
   const config = {
     endpoint: "https://yolofootball-database.documents.azure.com:443/",
     key: "hOicNBuPcYclHNG3UHZA9zGKhXp9zrTeoxbagVWBWRql4nXsEbOykJkyxfKMA2cEOGuwvMAMIES8Ssg81bppFA==",
@@ -16,90 +16,142 @@ router.get("/all", async function (req, res, next) {
     key: config.key,
   });
   const database = client.database(config.databaseId);
-  const container = database.container(config.containerId);
+
+  return {
+    database,
+    container: database.container(config.containerId),
+  };
+};
+
+const normalizeSelection = (selection, fallbackFixtureState) => ({
+  fixture_id: selection.fixture_id,
+  bet_result: parseInt(selection.bet_result, 10),
+  odd_rate: parseFloat(selection.odd_rate),
+  fixture_state: selection.fixture_state || fallbackFixtureState || "notstarted",
+  market: selection.market || "match_winner",
+  selection: selection.selection,
+});
+
+const normalizeOrderPayload = (postData) => {
+  if (Array.isArray(postData.selections) && postData.selections.length > 0) {
+    const selections = postData.selections.map((selection) =>
+      normalizeSelection(selection, postData.fixture_state)
+    );
+
+    return {
+      fixture_id: selections[0].fixture_id,
+      bet_result: selections[0].bet_result,
+      fixture_state: selections[0].fixture_state,
+      selections,
+      fixtures_ids: selections.map((selection) => selection.fixture_id),
+      fixture_states: selections.map((selection) => selection.fixture_state),
+      odd_rate: parseFloat(postData.odd_rate ?? postData.combined_odd),
+      odd_mount: parseFloat(postData.odd_mount ?? postData.stake),
+      win_return: parseFloat(postData.win_return),
+      order_type:
+        postData.order_type || (selections.length > 1 ? "accumulator" : "single"),
+      selection_count: selections.length,
+      user_name: postData.user_name,
+    };
+  }
+
+  return {
+    fixture_id: postData.fixture_id,
+    bet_result: parseInt(postData.bet_result, 10),
+    fixture_state: postData.fixture_state || "notstarted",
+    selections: [
+      normalizeSelection(
+        {
+          fixture_id: postData.fixture_id,
+          bet_result: postData.bet_result,
+          odd_rate: postData.odd_rate,
+          fixture_state: postData.fixture_state,
+        },
+        postData.fixture_state
+      ),
+    ],
+    fixtures_ids: postData.fixtures_ids || [],
+    fixture_states: postData.fixture_states || [],
+    odd_rate: parseFloat(postData.odd_rate),
+    odd_mount: parseFloat(postData.odd_mount),
+    win_return: parseFloat(postData.win_return),
+    order_type: postData.order_type || "single",
+    selection_count: postData.selection_count || 1,
+    user_name: postData.user_name,
+  };
+};
+
+router.get("/all", async function (req, res, next) {
+  const { container } = getOrdersContainer();
   var dates = await container.items.query(`SELECT * from c`).fetchAll();
   var orderData = dates.resources[0];
   global.testOrder = orderData;
   return res.status(200).send(orderData);
 });
 
-// get orders
 router.post("/orders", async function (req, res, next) {
-  const config = {
-    endpoint: "https://yolofootball-database.documents.azure.com:443/",
-    key: "hOicNBuPcYclHNG3UHZA9zGKhXp9zrTeoxbagVWBWRql4nXsEbOykJkyxfKMA2cEOGuwvMAMIES8Ssg81bppFA==",
-    databaseId: "yolofootball",
-    containerId: "orders",
-  };
-  const client = new CosmosClient({
-    endpoint: config.endpoint,
-    key: config.key,
-  });
-  const database = client.database(config.databaseId);
-  const container = database.container(config.containerId);
-  let postData = req.body;
-  let query = { query: "" };
+  const { container } = getOrdersContainer();
+  let postData = req.body || {};
+  let filters = ["1 = 1"];
+
   if (postData.ids && postData.ids.length > 0) {
-    query = {
-      query: `SELECT * 
-            FROM c
-            WHERE c.id IN ("${postData.ids.join('","')}")`,
-    };
+    filters.push(`c.id IN ("${postData.ids.join('","')}")`);
   }
 
-  if (req.body.state) {
-    query.query = query.query + ` AND c.state = "${req.body.state}"`;
+  if (postData.state) {
+    filters.push(`c.state = "${postData.state}"`);
   }
 
-  if (req.body.created_by) {
-    query.query = query.query + ` AND c.created_by = "${req.body.created_by}"`;
+  if (postData.created_by) {
+    filters.push(`c.created_by = "${postData.created_by}"`);
   }
-  console.log(query.query);
+
+  let query = {
+    query: `SELECT * FROM c WHERE ${filters.join(" AND ")}`,
+  };
+
   var dates = await container.items.query(query).fetchAll();
   var orderData = dates.resources;
   return res.status(200).send(orderData);
 });
 
-// create order
 router.post("/", async function (req, res, next) {
-  // need this header: Content-Type: application/json; charset=utf-8
-  const config = {
-    endpoint: "https://yolofootball-database.documents.azure.com:443/",
-    key: "hOicNBuPcYclHNG3UHZA9zGKhXp9zrTeoxbagVWBWRql4nXsEbOykJkyxfKMA2cEOGuwvMAMIES8Ssg81bppFA==",
-    databaseId: "yolofootball",
-    containerId: "orders",
-  };
-  const client = new CosmosClient({
-    endpoint: config.endpoint,
-    key: config.key,
-  });
-  const database = client.database(config.databaseId);
-  const container = database.container(config.containerId);
-  let postData = req.body;
+  const { database, container } = getOrdersContainer();
+  let postData = req.body || {};
+  let normalizedOrder = normalizeOrderPayload(postData);
+
   let orderToCreate = {
-    orderdate: new Date().getTime(), // order placed date
-    fixture_id: postData.fixture_id, // the fixture id that related to this order
-    fixtures_ids: [], // if multiple fixtures added to this order
-    bet_result: parseInt(postData.bet_result), // bet result: 0 is host win, 1 is draw, 2 is away win
-    odd_rate: parseFloat(postData.odd_rate), // rate
-    odd_mount: parseFloat(postData.odd_mount), // the total money that user bet
-    win_return: parseFloat(postData.win_return), // returns the money if wins
-    is_win: false, // is user win this order
-    state: "pending", // order status: pending, canceled, completed
-    fixture_state: postData.fixture_state, // fixture's state: notstarted, canceled, finished
-    fixture_states: [],
-    actual_return: 0, // the user actual mount get
-    created_by: postData.user_name ? postData.user_name : "ano",
+    orderdate: new Date().getTime(),
+    fixture_id: normalizedOrder.fixture_id,
+    fixtures_ids: normalizedOrder.fixtures_ids,
+    bet_result: normalizedOrder.bet_result,
+    odd_rate: normalizedOrder.odd_rate,
+    odd_mount: normalizedOrder.odd_mount,
+    win_return: normalizedOrder.win_return,
+    is_win: false,
+    state: "pending",
+    fixture_state: normalizedOrder.fixture_state,
+    fixture_states:
+      normalizedOrder.fixture_states.length > 0
+        ? normalizedOrder.fixture_states
+        : normalizedOrder.selections.map((selection) => selection.fixture_state),
+    actual_return: 0,
+    created_by: normalizedOrder.user_name ? normalizedOrder.user_name : "ano",
+    order_type: normalizedOrder.order_type,
+    selection_count: normalizedOrder.selection_count,
+    selections: normalizedOrder.selections,
   };
+
   var orderCreateResult = await container.items.create(orderToCreate);
   var orderData = orderCreateResult.resource;
-  // update users information
-  if (!postData.user_name) {
+
+  if (!normalizedOrder.user_name) {
     return res.status(200).send(orderData);
   }
+
   const userContainer = database.container("users");
   const query = {
-    query: `select * from c user where user.user_name = "${postData.user_name}"`,
+    query: `select * from c user where user.user_name = "${normalizedOrder.user_name}"`,
   };
   var readUsers = await userContainer.items.query(query).fetchAll();
   if (readUsers.resources && readUsers.resources.length > 0) {
@@ -107,31 +159,14 @@ router.post("/", async function (req, res, next) {
     currentUser.order_ids.push(orderData.id);
     currentUser.account_balance =
       currentUser.account_balance - orderData.odd_mount;
-    await userContainer
-      .item(currentUser.id, currentUser.id)
-      .replace(currentUser);
+    await userContainer.item(currentUser.id, currentUser.id).replace(currentUser);
     return res.status(200).send(orderData);
   }
   return res.status(400).send(orderData);
 });
 
-// update order
 router.put("/:orderId", async function (req, res, next) {
-  const CosmosClient = require("@azure/cosmos").CosmosClient;
-  const config = {
-    endpoint: "https://yolofootball-database.documents.azure.com:443/",
-    key: "hOicNBuPcYclHNG3UHZA9zGKhXp9zrTeoxbagVWBWRql4nXsEbOykJkyxfKMA2cEOGuwvMAMIES8Ssg81bppFA==",
-    databaseId: "yolofootball",
-    containerId: "orders",
-  };
-  console.log("connect to cosmosdb");
-  const client = new CosmosClient({
-    endpoint: config.endpoint,
-    key: config.key,
-  });
-  const database = client.database(config.databaseId);
-  const container = database.container(config.containerId);
-
+  const { container } = getOrdersContainer();
   const orderId = req.params && req.params.orderId;
   const postData = req.body;
 
@@ -142,10 +177,9 @@ router.put("/:orderId", async function (req, res, next) {
   const orderResponse = await container.item(orderId, orderId).read();
   let currentOrder = orderResponse.resource;
   if (!currentOrder) {
-    // throw Error('no order exists');
     return res.status(400);
   }
-  // 2 conditions: to cancel or complete order
+
   if (postData && postData.state) {
     if (postData.state == "canceled") {
       currentOrder.state = postData.state;
@@ -153,7 +187,7 @@ router.put("/:orderId", async function (req, res, next) {
       if (postData.returned_mount !== 0 && !postData.returned_mount) {
         return res.status(400);
       }
-      if (!postData.win_result) {
+      if (postData.win_result === undefined) {
         return res.status(400);
       }
       currentOrder.state = postData.state;
@@ -161,9 +195,8 @@ router.put("/:orderId", async function (req, res, next) {
       currentOrder.actual_return = postData.returned_mount;
     }
   }
-  var orderCreateResult = await container
-    .item(orderId, orderId)
-    .replace(currentOrder);
+
+  var orderCreateResult = await container.item(orderId, orderId).replace(currentOrder);
   var orderData = orderCreateResult.resource;
   return res.status(200).send(orderData);
 });
