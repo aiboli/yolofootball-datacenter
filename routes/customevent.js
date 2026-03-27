@@ -1,214 +1,260 @@
-var express = require('express');
-var helper = require('../common/helper');
+var express = require("express");
 var router = express.Router();
 
 const CosmosClient = require("@azure/cosmos").CosmosClient;
 
-router.get('/all', async function (req, res, next) {
-    const config = {
-        endpoint: "https://yolofootball-database.documents.azure.com:443/",
-        key: "hOicNBuPcYclHNG3UHZA9zGKhXp9zrTeoxbagVWBWRql4nXsEbOykJkyxfKMA2cEOGuwvMAMIES8Ssg81bppFA==",
-        databaseId: "yolofootball",
-        containerId: "orders"
-    };
-    const client = new CosmosClient({ endpoint: config.endpoint, key: config.key });
-    const database = client.database(config.databaseId);
-    const container = database.container(config.containerId);
-    var dates = await container.items.query(`SELECT * from c`).fetchAll();
-    var orderData = dates.resources[0];
-    global.testOrder = orderData;
-    return res.status(200).send(orderData);
+const ACTIVE_EVENT_STATUS = "active";
+
+const createDatabaseClient = () => {
+  const config = {
+    endpoint: "https://yolofootball-database.documents.azure.com:443/",
+    key: "hOicNBuPcYclHNG3UHZA9zGKhXp9zrTeoxbagVWBWRql4nXsEbOykJkyxfKMA2cEOGuwvMAMIES8Ssg81bppFA==",
+    databaseId: "yolofootball",
+  };
+  const client = new CosmosClient({
+    endpoint: config.endpoint,
+    key: config.key,
+  });
+  const database = client.database(config.databaseId);
+
+  return {
+    database,
+    customEventsContainer: database.container("customevents"),
+    usersContainer: database.container("users"),
+  };
+};
+
+const escapeCosmosString = (value) => String(value).replace(/"/g, '\\"');
+
+const normalizeFixtureId = (fixtureId) => {
+  if (typeof fixtureId === "string" && fixtureId.includes("@")) {
+    return parseInt(fixtureId.split("@")[1], 10);
+  }
+
+  return parseInt(fixtureId, 10);
+};
+
+const serializeEvent = (event) => ({
+  id: event.id,
+  fixture_id: parseInt(event.fixture_id, 10),
+  fixture_state: event.fixture_state || "notstarted",
+  created_by: event.created_by,
+  create_date: event.create_date,
+  status: event.status,
+  market: event.market || event?.odd_data?.market || "match_winner",
+  odd_data: event.odd_data,
 });
 
-/**
- * GET Single custom event by id
- */
-router.get('/', async function (req, res, next) {
-    const eventId = req.query.id;
-    const config = {
-        endpoint: "https://yolofootball-database.documents.azure.com:443/",
-        key: "hOicNBuPcYclHNG3UHZA9zGKhXp9zrTeoxbagVWBWRql4nXsEbOykJkyxfKMA2cEOGuwvMAMIES8Ssg81bppFA==",
-        databaseId: "yolofootball",
-        containerId: "customevents"
-    };
-    const client = new CosmosClient({ endpoint: config.endpoint, key: config.key });
-    const database = client.database(config.databaseId);
-    const container = database.container(config.containerId);
-    let query = {
-        query: `SELECT * from c event WHERE event.id = "${eventId}"`
-    };
-    var getEvent = await container.items.query(query).fetchAll();
-    if (getEvent.resources && getEvent.resources.length > 0) {
+const buildSearchQuery = (fixtureIds, status, excludeCreatedBy) => {
+  const filters = [];
+  if (Array.isArray(fixtureIds) && fixtureIds.length > 0) {
+    filters.push(`c.fixture_id IN (${fixtureIds.join(",")})`);
+  }
+  if (status) {
+    filters.push(`c.status = "${escapeCosmosString(status)}"`);
+  }
+  if (excludeCreatedBy) {
+    filters.push(`c.created_by != "${escapeCosmosString(excludeCreatedBy)}"`);
+  }
 
-        return res.status(200).send(orderData);
+  return `SELECT * FROM c${filters.length > 0 ? ` WHERE ${filters.join(" AND ")}` : ""}`;
+};
+
+const groupEventsByFixture = (events) => {
+  const groupedEvents = {};
+  events.forEach((event) => {
+    const serializedEvent = serializeEvent(event);
+    const fixtureKey = String(serializedEvent.fixture_id);
+    if (!groupedEvents[fixtureKey]) {
+      groupedEvents[fixtureKey] = [];
     }
-    var orderData = dates.resources[0];
-    global.testOrder = orderData;
-    return res.status(200).send(orderData);
+    groupedEvents[fixtureKey].push(serializedEvent);
+  });
+
+  return groupedEvents;
+};
+
+const searchEvents = async (req, res) => {
+  const fixtureIds = Array.isArray(req.body?.fixture_ids)
+    ? req.body.fixture_ids
+        .map((fixtureId) => normalizeFixtureId(fixtureId))
+        .filter((fixtureId) => Number.isInteger(fixtureId))
+    : [];
+
+  if (Array.isArray(req.body?.fixture_ids) && fixtureIds.length !== req.body.fixture_ids.length) {
+    return res.status(400).json({ error: "fixture_ids must contain valid fixture ids" });
+  }
+
+  if (fixtureIds.length === 0) {
+    return res.status(200).json({ events_by_fixture: {} });
+  }
+
+  const { customEventsContainer } = createDatabaseClient();
+  const query = buildSearchQuery(
+    fixtureIds,
+    req.body?.status || ACTIVE_EVENT_STATUS,
+    req.body?.exclude_created_by
+  );
+  const result = await customEventsContainer.items.query(query).fetchAll();
+
+  return res.status(200).json({
+    events_by_fixture: groupEventsByFixture(result.resources || []),
+  });
+};
+
+const updateUserCreatedBidIds = async (usersContainer, userName, eventId) => {
+  if (!userName) {
+    return;
+  }
+
+  const query = {
+    query: `SELECT * FROM c user WHERE user.user_name = "${escapeCosmosString(userName)}"`,
+  };
+  const readUsers = await usersContainer.items.query(query).fetchAll();
+  if (!readUsers.resources || readUsers.resources.length === 0) {
+    return;
+  }
+
+  const currentUser = readUsers.resources[0];
+  const createdBidIds = Array.isArray(currentUser.created_bid_ids)
+    ? currentUser.created_bid_ids
+    : [];
+  if (!createdBidIds.includes(eventId)) {
+    createdBidIds.push(eventId);
+  }
+  currentUser.created_bid_ids = createdBidIds;
+  await usersContainer.item(currentUser.id, currentUser.id).replace(currentUser);
+};
+
+router.get("/all", async function (req, res, next) {
+  try {
+    const { customEventsContainer } = createDatabaseClient();
+    const result = await customEventsContainer.items.query("SELECT * FROM c").fetchAll();
+    return res.status(200).json((result.resources || []).map(serializeEvent));
+  } catch (error) {
+    return next(error);
+  }
 });
 
-// get customevents
-router.post('/customevents', async function (req, res, next) {
-    const config = {
-        endpoint: "https://yolofootball-database.documents.azure.com:443/",
-        key: "hOicNBuPcYclHNG3UHZA9zGKhXp9zrTeoxbagVWBWRql4nXsEbOykJkyxfKMA2cEOGuwvMAMIES8Ssg81bppFA==",
-        databaseId: "yolofootball",
-        containerId: "orders"
-    };
-    const client = new CosmosClient({ endpoint: config.endpoint, key: config.key });
-    const database = client.database(config.databaseId);
-    const container = database.container(config.containerId);
-    let postData = req.body;
-    let query = {
-        query: `SELECT * 
-        FROM c
-        WHERE c.id IN ("${postData.ids.join('","')}")`
-    };
-
-    if (req.body.state) {
-        query.query = query.query + ` AND c.state = "${req.body.state}"`
+router.get("/", async function (req, res, next) {
+  try {
+    if (!req.query?.id) {
+      return res.status(400).json({ error: "id is required" });
     }
 
-    if (req.body.created_by) {
-        query.query = query.query + ` AND c.created_by = "${req.body.created_by}"`
-    }
-    console.log(query.query);
-    var dates = await container.items.query(query).fetchAll();
-    var orderData = dates.resources;
-    return res.status(200).send(orderData);
-});
-
-// create custom event
-router.post('/', async function (req, res, next) {
-    // need this header: Content-Type: application/json; charset=utf-8
-    const config = {
-        endpoint: "https://yolofootball-database.documents.azure.com:443/",
-        key: "hOicNBuPcYclHNG3UHZA9zGKhXp9zrTeoxbagVWBWRql4nXsEbOykJkyxfKMA2cEOGuwvMAMIES8Ssg81bppFA==",
-        databaseId: "yolofootball",
-        containerId: "customevents"
-    };
-    const client = new CosmosClient({ endpoint: config.endpoint, key: config.key });
-    const database = client.database(config.databaseId);
-    const container = database.container(config.containerId);
-    let postData = req.body;
-    let eventToCreate = {
-        "create_date": new Date().getTime(), // order placed date
-        "fixture_id": postData.fixture_id, // the fixture id that this event is created for
-        "odd_data": postData.odd_data, // custome event odd data
-        "status": 'active', // status of this event, 1. active - when first time created, 2. locked - when game is ongoing, 3. canceled - event is canceld 4. completed - game is over and win has been paid
-        "event_history": [], // event history
-        "pool_fund": postData.poll_fund, // total fund that user prepared for this pool
-        "matched_pool_fund": postData.matched_poll_fund, // extra matched fund provided by others
-        "invested_pool_fund": 0, // total inversted pool fund for now
-        "associated_order_ids": [], // the order number that player created
-        "actual_return": 0, // the user actual mount get
-        "created_by": postData.user_name ? postData.user_name : 'ano'
-    }
-    var eventCreateResult = await container.items.create(eventToCreate);
-    var eventData = eventCreateResult.resource;
-    // update users information
-    if (!postData.user_name) {
-        return res.status(200).send(eventData);
-    }
-    const userContainer = database.container("users");
+    const { customEventsContainer } = createDatabaseClient();
     const query = {
-        query: `select * from c user where user.user_name = "${postData.user_name}"`
+      query: `SELECT * FROM c WHERE c.id = "${escapeCosmosString(req.query.id)}"`,
     };
-    var readUsers = await userContainer.items.query(query).fetchAll();
-    if (readUsers.resources && readUsers.resources.length > 0) {
-        let currentUser = readUsers.resources[0];
-        currentUser.created_bid_ids.push(eventData.id);
-        currentUser.account_balance = currentUser.account_balance - eventData.poll_fund;
-        await userContainer.item(currentUser.id, currentUser.id).replace(currentUser);
-        return res.status(200).send(eventData);
+    const result = await customEventsContainer.items.query(query).fetchAll();
+    if (!result.resources || result.resources.length === 0) {
+      return res.status(404).json({ error: "custom event not found" });
     }
-    return res.status(400).send(eventData);
+
+    return res.status(200).json(result.resources[0]);
+  } catch (error) {
+    return next(error);
+  }
 });
 
-// update custom event
-router.put('/:eventid', async function (req, res, next) {
-    const CosmosClient = require("@azure/cosmos").CosmosClient;
-    const config = {
-        endpoint: "https://yolofootball-database.documents.azure.com:443/",
-        key: "hOicNBuPcYclHNG3UHZA9zGKhXp9zrTeoxbagVWBWRql4nXsEbOykJkyxfKMA2cEOGuwvMAMIES8Ssg81bppFA==",
-        databaseId: "yolofootball",
-        containerId: "customevents"
+router.post("/search", async function (req, res, next) {
+  try {
+    return await searchEvents(req, res);
+  } catch (error) {
+    return next(error);
+  }
+});
+
+router.post("/customevents", async function (req, res, next) {
+  try {
+    req.body = {
+      fixture_ids: req.body?.fixture_ids || req.body?.ids || [],
+      status: req.body?.status,
+      exclude_created_by: req.body?.exclude_created_by,
     };
-    console.log('connect to cosmosdb');
-    const client = new CosmosClient({ endpoint: config.endpoint, key: config.key });
-    const database = client.database(config.databaseId);
-    const container = database.container(config.containerId);
+    return await searchEvents(req, res);
+  } catch (error) {
+    return next(error);
+  }
+});
 
-    const eventid = req.params && req.params.eventid;
-    const postData = req.body;
-
-    if (!eventid) {
-        return res.status(400);
+router.post("/", async function (req, res, next) {
+  try {
+    const fixtureId = normalizeFixtureId(req.body?.fixture_id);
+    if (!Number.isInteger(fixtureId)) {
+      return res.status(400).json({ error: "fixture_id is required" });
     }
 
-    const eventResponse = await container.item(eventid, eventid).read();
-    let currentEvent = eventResponse.resource;
-    console.log(currentEvent);
+    if (!req.body?.odd_data) {
+      return res.status(400).json({ error: "odd_data is required" });
+    }
+
+    const { customEventsContainer, usersContainer } = createDatabaseClient();
+    const eventToCreate = {
+      create_date: new Date().getTime(),
+      fixture_id: fixtureId,
+      fixture_state: req.body?.fixture_state || "notstarted",
+      market: req.body?.market || req.body?.odd_data?.market || "match_winner",
+      odd_data: req.body.odd_data,
+      status: req.body?.status || ACTIVE_EVENT_STATUS,
+      event_history: Array.isArray(req.body?.event_history) ? req.body.event_history : [],
+      pool_fund: Number(req.body?.pool_fund || 0),
+      matched_pool_fund: Number(req.body?.matched_pool_fund || 0),
+      invested_pool_fund: Number(req.body?.invested_pool_fund || 0),
+      associated_order_ids: Array.isArray(req.body?.associated_order_ids)
+        ? req.body.associated_order_ids
+        : [],
+      actual_return: Number(req.body?.actual_return || 0),
+      created_by: req.body?.created_by || req.body?.user_name || "ano",
+    };
+
+    const createResult = await customEventsContainer.items.create(eventToCreate);
+    const createdEvent = createResult.resource;
+    await updateUserCreatedBidIds(usersContainer, req.body?.user_name, createdEvent.id);
+    return res.status(200).json(createdEvent);
+  } catch (error) {
+    return next(error);
+  }
+});
+
+router.put("/:eventid", async function (req, res, next) {
+  try {
+    const eventId = req.params?.eventid;
+    if (!eventId) {
+      return res.sendStatus(400);
+    }
+
+    const { customEventsContainer } = createDatabaseClient();
+    const eventResponse = await customEventsContainer.item(eventId, eventId).read();
+    const currentEvent = eventResponse.resource;
     if (!currentEvent) {
-        // throw Error('no order exists');
-        return res.status(400);
+      return res.sendStatus(404);
     }
-    // scenarios: 
-    // event owner: add more fund, cancel event, change odd data
-    // player: place bet, cancel bet
-    // system: update event status, pay players and owner
-    switch (postData.action) {
-        case 'updateFund':
-            currentEvent.pool_fund = postData.updated_fund;
-            currentEvent.event_history.push({
-                time: new Date(),
-                info: `update fund to ${postData.updated_fund}`
-            });
-            var currentEventResult = await container.item(eventid, eventid).replace(currentEvent);
-            var eventData = currentEventResult.resource;
-            return res.status(200).send(eventData);
-        case 'updateStatus':
-            currentEvent.status = postData.status;
-            currentEvent.event_history.push({
-                time: new Date(),
-                info: `update status to ${postData.status}`
-            });
-            var currentEventResult = await container.item(eventid, eventid).replace(currentEvent);
-            var eventData = currentEventResult.resource;
-            return res.status(200).send(eventData);
-        case 'updateOddData':
-            currentEvent.odd_data = postData.odd_data;
-            currentEvent.event_history.push({
-                time: new Date(),
-                info: `update odd_data`,
-                data: postData.odd_data
-            });
-            var currentEventResult = await container.item(eventid, eventid).replace(currentEvent);
-            var eventData = currentEventResult.resource;
-            return res.status(200).send(eventData);
-        case 'placeBet':
-            currentEvent.invested_pool_fund = currentEvent.invested_pool_fund + postData.odd_mount;
-            currentEvent.associated_order_ids.push(postData.order_id);
-            currentEvent.event_history.push({
-                time: new Date(),
-                info: `palce bet ${postData.odd_mount} for ${postData.bet_result}`
-            });
-            var currentEventResult = await container.item(eventid, eventid).replace(currentEvent);
-            var eventData = currentEventResult.resource;
-            return res.status(200).send(eventData);
-        case 'cancelBet':
-            currentEvent.invested_pool_fund = currentEvent.invested_pool_fund - postData.odd_mount;
-            currentEvent.associated_order_ids = currentEvent.associated_order_ids.filter((id) => id != postData.order_id);
-            currentEvent.event_history.push({
-                time: new Date(),
-                info: `remove bet ${postData.odd_mount} for ${postData.bet_result}`
-            });
-            var currentEventResult = await container.item(eventid, eventid).replace(currentEvent);
-            var eventData = currentEventResult.resource;
-            return res.status(200).send(eventData);
-        default:
-            return res.status(400);
+
+    if (req.body?.status) {
+      currentEvent.status = req.body.status;
     }
+    if (req.body?.odd_data) {
+      currentEvent.odd_data = req.body.odd_data;
+    }
+    if (req.body?.fixture_state) {
+      currentEvent.fixture_state = req.body.fixture_state;
+    }
+    currentEvent.event_history = Array.isArray(currentEvent.event_history)
+      ? currentEvent.event_history
+      : [];
+    currentEvent.event_history.push({
+      time: new Date(),
+      info: "update custom event",
+    });
+
+    const updateResult = await customEventsContainer
+      .item(eventId, eventId)
+      .replace(currentEvent);
+    return res.status(200).json(updateResult.resource);
+  } catch (error) {
+    return next(error);
+  }
 });
 
 module.exports = router;
