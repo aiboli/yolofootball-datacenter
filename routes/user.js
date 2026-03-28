@@ -30,6 +30,16 @@ const findUserByName = async (container, userName) => {
   return result.resources?.[0] || null;
 };
 
+const buildUsersListQuery = (query = {}) => {
+  const filters = [];
+
+  if (query?.has_predictions === "true") {
+    filters.push("ARRAY_LENGTH(c.prediction_history) > 0");
+  }
+
+  return `SELECT * FROM c${filters.length > 0 ? ` WHERE ${filters.join(" AND ")}` : ""}`;
+};
+
 /* create user */
 router.post("/", async function (req, res, next) {
   const container = createUsersContainer();
@@ -79,6 +89,12 @@ router.get("/", async function (req, res, next) {
   return res.status(200).json(userData);
 });
 
+router.get("/all", async function (req, res, next) {
+  const container = createUsersContainer();
+  const result = await container.items.query(buildUsersListQuery(req.query || {})).fetchAll();
+  return res.status(200).json(result.resources || []);
+});
+
 /* update selected user profile fields */
 router.put("/:userName", async function (req, res, next) {
   const container = createUsersContainer();
@@ -116,3 +132,7 @@ router.put("/:userName", async function (req, res, next) {
 });
 
 module.exports = router;
+module.exports._private = {
+  buildUsersListQuery,
+  escapeCosmosString,
+};
