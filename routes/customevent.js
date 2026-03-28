@@ -4,6 +4,24 @@ var router = express.Router();
 const CosmosClient = require("@azure/cosmos").CosmosClient;
 
 const ACTIVE_EVENT_STATUS = "active";
+const SUPPORTED_EVENT_STATUSES = new Set([
+  "active",
+  "locked",
+  "completed",
+  "canceled",
+]);
+const SUPPORTED_FIXTURE_STATES = new Set([
+  "notstarted",
+  "ongoing",
+  "finished",
+  "canceled",
+]);
+const SUPPORTED_MARKET = "match_winner";
+const EXPECTED_OPTION_SHAPE = [
+  { result: 0, label: "Home" },
+  { result: 1, label: "Draw" },
+  { result: 2, label: "Away" },
+];
 
 const createDatabaseClient = () => {
   const config = {
@@ -72,6 +90,56 @@ const normalizeCreatorFilter = (value) => {
   return trimmedValue.length > 0 ? trimmedValue : null;
 };
 
+const normalizeFixtureState = (value, fallbackValue = "notstarted") => {
+  return SUPPORTED_FIXTURE_STATES.has(value) ? value : fallbackValue;
+};
+
+const normalizeStatus = (value, fallbackValue = ACTIVE_EVENT_STATUS) => {
+  return SUPPORTED_EVENT_STATUSES.has(value) ? value : fallbackValue;
+};
+
+const normalizeOddData = (oddData) => {
+  if (
+    !oddData ||
+    oddData.market !== SUPPORTED_MARKET ||
+    !Array.isArray(oddData.options) ||
+    oddData.options.length !== EXPECTED_OPTION_SHAPE.length
+  ) {
+    return null;
+  }
+
+  const oddsByResult = {};
+  oddData.options.forEach((option) => {
+    const result = parseInt(option?.result, 10);
+    const odd = parseFloat(option?.odd);
+
+    if (Number.isInteger(result) && Number.isFinite(odd) && odd > 0) {
+      oddsByResult[result] = odd;
+    }
+  });
+
+  const normalizedOptions = EXPECTED_OPTION_SHAPE.map((expectedOption) => {
+    if (!Object.prototype.hasOwnProperty.call(oddsByResult, expectedOption.result)) {
+      return null;
+    }
+
+    return {
+      result: expectedOption.result,
+      label: expectedOption.label,
+      odd: oddsByResult[expectedOption.result],
+    };
+  });
+
+  if (normalizedOptions.some((option) => !option)) {
+    return null;
+  }
+
+  return {
+    market: SUPPORTED_MARKET,
+    options: normalizedOptions,
+  };
+};
+
 const normalizeSearchPayload = (body) => {
   const fixtureIds = Array.isArray(body?.fixture_ids)
     ? body.fixture_ids
@@ -89,6 +157,8 @@ const normalizeSearchPayload = (body) => {
     hasInvalidFixtureIds:
       Array.isArray(body?.fixture_ids) && fixtureIds.length !== body.fixture_ids.length,
     hasConflictingCreatorFilters: !!createdBy && !!excludeCreatedBy,
+    hasInvalidStatus:
+      body?.status !== undefined && !SUPPORTED_EVENT_STATUSES.has(body?.status),
   };
 };
 
@@ -161,13 +231,13 @@ const applyEventUpdates = (currentEvent, body) => {
   };
 
   if (body?.status) {
-    nextEvent.status = body.status;
+    nextEvent.status = normalizeStatus(body.status);
   }
   if (body?.odd_data) {
-    nextEvent.odd_data = body.odd_data;
+    nextEvent.odd_data = normalizeOddData(body.odd_data) || currentEvent.odd_data;
   }
   if (body?.fixture_state) {
-    nextEvent.fixture_state = body.fixture_state;
+    nextEvent.fixture_state = normalizeFixtureState(body.fixture_state, currentEvent.fixture_state);
   }
 
   nextEvent.event_history = Array.isArray(currentEvent.event_history)
@@ -188,6 +258,9 @@ const searchEvents = async (req, res) => {
     return res
       .status(400)
       .json({ error: "created_by and exclude_created_by cannot be combined" });
+  }
+  if (normalizedPayload.hasInvalidStatus) {
+    return res.status(400).json({ error: "unsupported status" });
   }
   if (normalizedPayload.fixtureIds.length === 0) {
     return res.status(200).json({ events_by_fixture: {} });
@@ -319,18 +392,23 @@ router.post("/", async function (req, res, next) {
       return res.status(400).json({ error: "fixture_id is required" });
     }
 
-    if (!req.body?.odd_data) {
-      return res.status(400).json({ error: "odd_data is required" });
+    const normalizedOddData = normalizeOddData(req.body?.odd_data);
+    if (!normalizedOddData) {
+      return res.status(400).json({ error: "odd_data is invalid" });
+    }
+
+    if (req.body?.status && !SUPPORTED_EVENT_STATUSES.has(req.body.status)) {
+      return res.status(400).json({ error: "unsupported status" });
     }
 
     const { customEventsContainer, usersContainer } = createDatabaseClient();
     const eventToCreate = {
       create_date: new Date().getTime(),
       fixture_id: fixtureId,
-      fixture_state: req.body?.fixture_state || "notstarted",
-      market: req.body?.market || req.body?.odd_data?.market || "match_winner",
-      odd_data: req.body.odd_data,
-      status: req.body?.status || ACTIVE_EVENT_STATUS,
+      fixture_state: normalizeFixtureState(req.body?.fixture_state),
+      market: SUPPORTED_MARKET,
+      odd_data: normalizedOddData,
+      status: normalizeStatus(req.body?.status),
       event_history: Array.isArray(req.body?.event_history) ? req.body.event_history : [],
       pool_fund: Number(req.body?.pool_fund || 0),
       matched_pool_fund: Number(req.body?.matched_pool_fund || 0),
@@ -339,7 +417,10 @@ router.post("/", async function (req, res, next) {
         ? req.body.associated_order_ids
         : [],
       actual_return: Number(req.body?.actual_return || 0),
-      created_by: req.body?.created_by || req.body?.user_name || "ano",
+      created_by:
+        normalizeCreatorFilter(req.body?.created_by) ||
+        normalizeCreatorFilter(req.body?.user_name) ||
+        "ano",
     };
 
     const createResult = await customEventsContainer.items.create(eventToCreate);
@@ -356,6 +437,18 @@ router.put("/:eventid", async function (req, res, next) {
     const eventId = req.params?.eventid;
     if (!eventId) {
       return res.sendStatus(400);
+    }
+    if (req.body?.status && !SUPPORTED_EVENT_STATUSES.has(req.body.status)) {
+      return res.status(400).json({ error: "unsupported status" });
+    }
+    if (req.body?.odd_data && !normalizeOddData(req.body.odd_data)) {
+      return res.status(400).json({ error: "odd_data is invalid" });
+    }
+    if (
+      req.body?.fixture_state !== undefined &&
+      !SUPPORTED_FIXTURE_STATES.has(req.body.fixture_state)
+    ) {
+      return res.status(400).json({ error: "unsupported fixture_state" });
     }
 
     const { customEventsContainer } = createDatabaseClient();
@@ -381,6 +474,9 @@ module.exports._private = {
   serializeEvent,
   serializeDashboardEvent,
   normalizeCreatorFilter,
+  normalizeFixtureState,
+  normalizeStatus,
+  normalizeOddData,
   normalizeSearchPayload,
   buildSearchQuery,
   groupEventsByFixture,
