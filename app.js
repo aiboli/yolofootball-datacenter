@@ -13,6 +13,7 @@ var actionsRouter = require("./routes/actions");
 var orderRouter = require("./routes/order");
 var customEventRouter = require("./routes/customevent");
 var fixturesRouter = require("./routes/fixtures");
+var notificationRouter = require("./routes/notification");
 
 global.testgame = { test: "test" };
 global.testfixtures = { test: "fixtures" };
@@ -56,6 +57,7 @@ app.use("/actions", actionsRouter);
 app.use("/order", orderRouter);
 app.use("/customevent", customEventRouter);
 app.use("/fixtures", fixturesRouter);
+app.use("/notification", notificationRouter);
 
 // jobs manager
 JobsManager.start();

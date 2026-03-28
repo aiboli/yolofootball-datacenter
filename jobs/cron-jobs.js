@@ -2,6 +2,8 @@ const nodeCron = require("node-cron");
 const axios = require("axios").default;
 const helper = require("../common/helper");
 const CosmosClient = require("@azure/cosmos").CosmosClient;
+const { createNotificationRepository } = require("../common/notificationRepository");
+const { runNotificationSweep } = require("./notificationSweep");
 const Mailjet = require("node-mailjet");
 const mailjet = Mailjet.apiConnect(
   "540e8d4b1864d6a55dec4d9e57d47c94",
@@ -21,6 +23,7 @@ const container = database.container(config.containerId);
 const fixturesContainer = database.container("fixtures");
 const leaguesContainer = database.container("leagues");
 const oddsContainer = database.container("odds");
+const notificationRepository = createNotificationRepository();
 
 const runTimeMonitor = nodeCron.schedule(
   "*/3 * * * *",
@@ -244,6 +247,26 @@ const allOddsRequest = nodeCron.schedule(
   }
 );
 
+const notificationSweepRequest = nodeCron.schedule(
+  "*/10 * * * *",
+  async function jobYouNeedToExecute() {
+    try {
+      console.log("notification sweep executed");
+      await runNotificationSweep({
+        repository: notificationRepository,
+        now: new Date(),
+      });
+    } catch (error) {
+      console.log("notification sweep failed");
+      console.log(error);
+    }
+  },
+  {
+    scheduled: true,
+    timezone: "America/Los_Angeles",
+  }
+);
+
 function start() {
   // init();
   // allGamesRequest.start();
@@ -251,6 +274,7 @@ function start() {
   // --------live below---------
   allDataRequest.start();
   allOddsRequest.start();
+  notificationSweepRequest.start();
   // --------test below---------
   // prepareAllFixureData([39], "2024", leaguesContainer);
   // testEmail();
