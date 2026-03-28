@@ -29,7 +29,8 @@ router.post('/', async function (req, res, next) {
     "is_valid_user": false,
     "customized_field": {
       "prefered_culture": "en-us"
-    }
+    },
+    "privacy_consent": postData.privacy_consent || null
   };
   var userCreateResult = await container.items.create(userToCreate);
   var userData = userCreateResult.resource;
