@@ -57,6 +57,9 @@ const supportedLeagueLookup = new Set(
 const isSupportedLeagueMeta = (leagueMeta) =>
   supportedLeagueLookup.has(buildLeagueLookupKey(leagueMeta));
 
+const matchesSupportedLeague = (leagueMeta, supportedLeague) =>
+  buildLeagueLookupKey(leagueMeta) === buildLeagueLookupKey(supportedLeague);
+
 const isSupportedLeagueEntry = (entry) =>
   isSupportedLeagueMeta({
     country: entry?.league?.country,
@@ -68,7 +71,9 @@ const filterSupportedLeagueEntries = (entries = []) =>
 
 module.exports = {
   SUPPORTED_LEAGUES,
+  buildLeagueLookupKey,
   isSupportedLeagueMeta,
+  matchesSupportedLeague,
   isSupportedLeagueEntry,
   filterSupportedLeagueEntries,
 };

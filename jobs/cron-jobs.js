@@ -5,7 +5,7 @@ const CosmosClient = require("@azure/cosmos").CosmosClient;
 const { createNotificationRepository } = require("../common/notificationRepository");
 const {
   SUPPORTED_LEAGUES,
-  isSupportedLeagueMeta,
+  matchesSupportedLeague,
 } = require("../common/supportedLeagues");
 const { runNotificationSweep } = require("./notificationSweep");
 const Mailjet = require("node-mailjet");
@@ -333,10 +333,13 @@ async function resolveSupportedLeagues(forceRefresh = false) {
 
   SUPPORTED_LEAGUES.forEach((supportedLeague) => {
     const matchedLeague = currentLeagues.find((leagueEntry) =>
-      isSupportedLeagueMeta({
-        country: leagueEntry?.country?.name,
-        name: leagueEntry?.league?.name,
-      })
+      matchesSupportedLeague(
+        {
+          country: leagueEntry?.country?.name,
+          name: leagueEntry?.league?.name,
+        },
+        supportedLeague
+      )
     );
 
     if (!matchedLeague) {
