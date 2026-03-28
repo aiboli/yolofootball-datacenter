@@ -45,6 +45,24 @@ const serializeEvent = (event) => ({
   odd_data: event.odd_data,
 });
 
+const serializeDashboardEvent = (event) => ({
+  id: event.id,
+  fixture_id: parseInt(event.fixture_id, 10),
+  fixture_state: event.fixture_state || "notstarted",
+  created_by: event.created_by,
+  create_date: event.create_date,
+  status: event.status,
+  market: event.market || event?.odd_data?.market || "match_winner",
+  odd_data: event.odd_data,
+  pool_fund: Number(event.pool_fund || 0),
+  matched_pool_fund: Number(event.matched_pool_fund || 0),
+  invested_pool_fund: Number(event.invested_pool_fund || 0),
+  actual_return: Number(event.actual_return || 0),
+  associated_order_ids: Array.isArray(event.associated_order_ids)
+    ? event.associated_order_ids
+    : [],
+});
+
 const buildSearchQuery = (fixtureIds, status, excludeCreatedBy) => {
   const filters = [];
   if (Array.isArray(fixtureIds) && fixtureIds.length > 0) {
@@ -72,6 +90,25 @@ const groupEventsByFixture = (events) => {
   });
 
   return groupedEvents;
+};
+
+const normalizeEventIds = (ids) => {
+  if (!Array.isArray(ids)) {
+    return {
+      ids: [],
+      hasInvalidIds: false,
+    };
+  }
+
+  const normalizedIds = ids
+    .filter((id) => typeof id === "string")
+    .map((id) => id.trim())
+    .filter((id) => id.length > 0);
+
+  return {
+    ids: normalizedIds,
+    hasInvalidIds: normalizedIds.length !== ids.length,
+  };
 };
 
 const searchEvents = async (req, res) => {
@@ -160,6 +197,39 @@ router.get("/", async function (req, res, next) {
 router.post("/search", async function (req, res, next) {
   try {
     return await searchEvents(req, res);
+  } catch (error) {
+    return next(error);
+  }
+});
+
+router.post("/bulk", async function (req, res, next) {
+  try {
+    const normalizedEventIds = normalizeEventIds(req.body?.ids);
+    if (normalizedEventIds.hasInvalidIds) {
+      return res.status(400).json({ error: "ids must contain valid event ids" });
+    }
+
+    if (normalizedEventIds.ids.length === 0) {
+      return res.status(200).json([]);
+    }
+
+    const { customEventsContainer } = createDatabaseClient();
+    const query = {
+      query: `SELECT * FROM c WHERE c.id IN ("${normalizedEventIds.ids
+        .map((id) => escapeCosmosString(id))
+        .join('","')}")`,
+    };
+    const result = await customEventsContainer.items.query(query).fetchAll();
+    const eventsById = {};
+    (result.resources || []).forEach((event) => {
+      eventsById[event.id] = serializeDashboardEvent(event);
+    });
+
+    return res.status(200).json(
+      normalizedEventIds.ids
+        .map((id) => eventsById[id])
+        .filter((event) => !!event)
+    );
   } catch (error) {
     return next(error);
   }
@@ -258,3 +328,12 @@ router.put("/:eventid", async function (req, res, next) {
 });
 
 module.exports = router;
+module.exports._private = {
+  escapeCosmosString,
+  normalizeFixtureId,
+  serializeEvent,
+  serializeDashboardEvent,
+  buildSearchQuery,
+  groupEventsByFixture,
+  normalizeEventIds,
+};
