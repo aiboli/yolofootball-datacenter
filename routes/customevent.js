@@ -63,7 +63,36 @@ const serializeDashboardEvent = (event) => ({
     : [],
 });
 
-const buildSearchQuery = (fixtureIds, status, excludeCreatedBy) => {
+const normalizeCreatorFilter = (value) => {
+  if (typeof value !== "string") {
+    return null;
+  }
+
+  const trimmedValue = value.trim();
+  return trimmedValue.length > 0 ? trimmedValue : null;
+};
+
+const normalizeSearchPayload = (body) => {
+  const fixtureIds = Array.isArray(body?.fixture_ids)
+    ? body.fixture_ids
+        .map((fixtureId) => normalizeFixtureId(fixtureId))
+        .filter((fixtureId) => Number.isInteger(fixtureId))
+    : [];
+  const createdBy = normalizeCreatorFilter(body?.created_by);
+  const excludeCreatedBy = normalizeCreatorFilter(body?.exclude_created_by);
+
+  return {
+    fixtureIds,
+    status: body?.status || ACTIVE_EVENT_STATUS,
+    createdBy,
+    excludeCreatedBy,
+    hasInvalidFixtureIds:
+      Array.isArray(body?.fixture_ids) && fixtureIds.length !== body.fixture_ids.length,
+    hasConflictingCreatorFilters: !!createdBy && !!excludeCreatedBy,
+  };
+};
+
+const buildSearchQuery = ({ fixtureIds, status, excludeCreatedBy, createdBy }) => {
   const filters = [];
   if (Array.isArray(fixtureIds) && fixtureIds.length > 0) {
     filters.push(`c.fixture_id IN (${fixtureIds.join(",")})`);
@@ -73,6 +102,9 @@ const buildSearchQuery = (fixtureIds, status, excludeCreatedBy) => {
   }
   if (excludeCreatedBy) {
     filters.push(`c.created_by != "${escapeCosmosString(excludeCreatedBy)}"`);
+  }
+  if (createdBy) {
+    filters.push(`c.created_by = "${escapeCosmosString(createdBy)}"`);
   }
 
   return `SELECT * FROM c${filters.length > 0 ? ` WHERE ${filters.join(" AND ")}` : ""}`;
@@ -111,27 +143,58 @@ const normalizeEventIds = (ids) => {
   };
 };
 
-const searchEvents = async (req, res) => {
-  const fixtureIds = Array.isArray(req.body?.fixture_ids)
-    ? req.body.fixture_ids
-        .map((fixtureId) => normalizeFixtureId(fixtureId))
-        .filter((fixtureId) => Number.isInteger(fixtureId))
-    : [];
+const normalizeEventHistoryEntry = (eventHistoryEntry) => {
+  const info =
+    typeof eventHistoryEntry?.info === "string" && eventHistoryEntry.info.trim().length > 0
+      ? eventHistoryEntry.info.trim()
+      : "update custom event";
 
-  if (Array.isArray(req.body?.fixture_ids) && fixtureIds.length !== req.body.fixture_ids.length) {
-    return res.status(400).json({ error: "fixture_ids must contain valid fixture ids" });
+  return {
+    time: eventHistoryEntry?.time || new Date(),
+    info,
+  };
+};
+
+const applyEventUpdates = (currentEvent, body) => {
+  const nextEvent = {
+    ...currentEvent,
+  };
+
+  if (body?.status) {
+    nextEvent.status = body.status;
+  }
+  if (body?.odd_data) {
+    nextEvent.odd_data = body.odd_data;
+  }
+  if (body?.fixture_state) {
+    nextEvent.fixture_state = body.fixture_state;
   }
 
-  if (fixtureIds.length === 0) {
+  nextEvent.event_history = Array.isArray(currentEvent.event_history)
+    ? [...currentEvent.event_history]
+    : [];
+  nextEvent.event_history.push(normalizeEventHistoryEntry(body?.event_history_entry));
+
+  return nextEvent;
+};
+
+const searchEvents = async (req, res) => {
+  const normalizedPayload = normalizeSearchPayload(req.body || {});
+
+  if (normalizedPayload.hasInvalidFixtureIds) {
+    return res.status(400).json({ error: "fixture_ids must contain valid fixture ids" });
+  }
+  if (normalizedPayload.hasConflictingCreatorFilters) {
+    return res
+      .status(400)
+      .json({ error: "created_by and exclude_created_by cannot be combined" });
+  }
+  if (normalizedPayload.fixtureIds.length === 0) {
     return res.status(200).json({ events_by_fixture: {} });
   }
 
   const { customEventsContainer } = createDatabaseClient();
-  const query = buildSearchQuery(
-    fixtureIds,
-    req.body?.status || ACTIVE_EVENT_STATUS,
-    req.body?.exclude_created_by
-  );
+  const query = buildSearchQuery(normalizedPayload);
   const result = await customEventsContainer.items.query(query).fetchAll();
 
   return res.status(200).json({
@@ -240,6 +303,7 @@ router.post("/customevents", async function (req, res, next) {
     req.body = {
       fixture_ids: req.body?.fixture_ids || req.body?.ids || [],
       status: req.body?.status,
+      created_by: req.body?.created_by,
       exclude_created_by: req.body?.exclude_created_by,
     };
     return await searchEvents(req, res);
@@ -301,26 +365,9 @@ router.put("/:eventid", async function (req, res, next) {
       return res.sendStatus(404);
     }
 
-    if (req.body?.status) {
-      currentEvent.status = req.body.status;
-    }
-    if (req.body?.odd_data) {
-      currentEvent.odd_data = req.body.odd_data;
-    }
-    if (req.body?.fixture_state) {
-      currentEvent.fixture_state = req.body.fixture_state;
-    }
-    currentEvent.event_history = Array.isArray(currentEvent.event_history)
-      ? currentEvent.event_history
-      : [];
-    currentEvent.event_history.push({
-      time: new Date(),
-      info: "update custom event",
-    });
-
     const updateResult = await customEventsContainer
       .item(eventId, eventId)
-      .replace(currentEvent);
+      .replace(applyEventUpdates(currentEvent, req.body || {}));
     return res.status(200).json(updateResult.resource);
   } catch (error) {
     return next(error);
@@ -333,7 +380,11 @@ module.exports._private = {
   normalizeFixtureId,
   serializeEvent,
   serializeDashboardEvent,
+  normalizeCreatorFilter,
+  normalizeSearchPayload,
   buildSearchQuery,
   groupEventsByFixture,
   normalizeEventIds,
+  normalizeEventHistoryEntry,
+  applyEventUpdates,
 };
