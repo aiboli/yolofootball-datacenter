@@ -2,6 +2,7 @@ var express = require("express");
 var router = express.Router();
 const helper = require("../common/helper");
 const CosmosClient = require("@azure/cosmos").CosmosClient;
+const { filterSupportedLeagueEntries } = require("../common/supportedLeagues");
 
 const createDatabaseClient = (containerId) => {
   const config = {
@@ -168,25 +169,28 @@ router.get("/prepareData", async function (req, res, next) {
   const { database, container: leaguesContainer } = createDatabaseClient("leagues");
   const oddsContainer = database.container("odds");
 
-  const query = "SELECT * FROM c WHERE c.league = '39'";
-  const allLeagues = await leaguesContainer.items.query(query).fetchAll();
-  let leagueData = allLeagues.resources[0];
   let leagueFixtureMap = {};
-  for (let i = 0; i < leagueData.fixtures.length; i++) {
-    let currentFixture = leagueData.fixtures[i];
-    if (currentFixture.fixture.status.short === "NS") {
-      leagueFixtureMap[currentFixture.fixture.id] = currentFixture;
-    }
-  }
-  const alloddsContainer = await oddsContainer.items.query(query).fetchAll();
-  let oddsData = alloddsContainer.resources[0];
-  for (let i = 0; i < oddsData.odds.length; i++) {
-    let currentOdds = oddsData.odds[i];
-    if (leagueFixtureMap[currentOdds.fixture.id]) {
-      let odds = currentOdds.bookmakers[0];
-      leagueFixtureMap[currentOdds.fixture.id].odds = odds;
-    }
-  }
+  const allLeagues = await leaguesContainer.items.query("SELECT * FROM c").fetchAll();
+  allLeagues.resources.forEach((leagueDocument) => {
+    filterSupportedLeagueEntries(leagueDocument.fixtures || []).forEach((currentFixture) => {
+      if (currentFixture?.fixture?.status?.short === "NS") {
+        leagueFixtureMap[currentFixture.fixture.id] = currentFixture;
+      }
+    });
+  });
+
+  const allOddsContainer = await oddsContainer.items.query("SELECT * FROM c").fetchAll();
+  allOddsContainer.resources.forEach((oddsDocument) => {
+    filterSupportedLeagueEntries(oddsDocument.odds || []).forEach((currentOdds) => {
+      if (
+        leagueFixtureMap[currentOdds?.fixture?.id] &&
+        Array.isArray(currentOdds?.bookmakers) &&
+        currentOdds.bookmakers[0]
+      ) {
+        leagueFixtureMap[currentOdds.fixture.id].odds = currentOdds.bookmakers[0];
+      }
+    });
+  });
 
   for (let key of Object.keys(leagueFixtureMap)) {
     if (!leagueFixtureMap[key].odds) {
