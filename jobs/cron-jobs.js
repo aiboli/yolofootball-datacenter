@@ -8,6 +8,7 @@ const {
   matchesSupportedLeague,
 } = require("../common/supportedLeagues");
 const { runNotificationSweep } = require("./notificationSweep");
+const { runOrderSettlementSweep } = require("./orderSettlementSweep");
 const Mailjet = require("node-mailjet");
 const mailjet = Mailjet.apiConnect(
   "540e8d4b1864d6a55dec4d9e57d47c94",
@@ -265,6 +266,11 @@ const notificationSweepRequest = nodeCron.schedule(
   "*/10 * * * *",
   async function jobYouNeedToExecute() {
     try {
+      console.log("order settlement sweep executed");
+      await runOrderSettlementSweep({
+        notificationRepository,
+        now: new Date(),
+      });
       console.log("notification sweep executed");
       await runNotificationSweep({
         repository: notificationRepository,

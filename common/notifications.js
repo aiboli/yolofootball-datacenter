@@ -362,6 +362,10 @@ const buildCustomEventStatusNotification = (event, fixture, now = new Date()) =>
 
   const fixtureId = Number.parseInt(event?.fixture_id, 10);
   const fixtureTitle = fixture ? getFixtureTitle(fixture) : `fixture ${fixtureId}`;
+  const fixtureStatus = getFixtureStatus(fixture);
+  const isFixtureUnavailable =
+    event?.fixture_state === "canceled" ||
+    ["PST", "CANC", "ABD", "AWD", "WO"].includes(fixtureStatus);
   const createdAt = toIsoString(now, new Date().toISOString());
   const dedupeKey = `custom_event_status:${userName}:${eventId}:${notificationStatus}`;
 
@@ -375,7 +379,9 @@ const buildCustomEventStatusNotification = (event, fixture, now = new Date()) =>
     body:
       notificationStatus === CANCELED_EVENT_STATUS
         ? "Your custom odds post is no longer active."
-        : "Kickoff has passed, so this custom odds post is now locked.",
+        : isFixtureUnavailable
+          ? "This fixture is no longer in a bettable pre-kickoff state, so this custom odds post was locked."
+          : "Kickoff has passed, so this custom odds post is now locked.",
     ctaPath: fixtureId ? `/?fixture=${fixtureId}` : "/",
     entityType: "custom_event",
     entityId: eventId,
@@ -387,6 +393,98 @@ const buildCustomEventStatusNotification = (event, fixture, now = new Date()) =>
       event_id: eventId,
       fixture_id: fixtureId || null,
       status: notificationStatus,
+    },
+  });
+};
+
+const buildCustomEventBetPlacedNotification = ({ event, order, fixture = null, now = new Date() }) => {
+  const userName = typeof event?.created_by === "string" ? event.created_by : "";
+  const eventId = typeof event?.id === "string" ? event.id : "";
+  const orderId = typeof order?.id === "string" ? order.id : "";
+  const bettorUserName = typeof order?.created_by === "string" ? order.created_by : "A bettor";
+  if (!userName || !eventId || !orderId || userName === "ano") {
+    return null;
+  }
+
+  const fixtureId = Number.parseInt(event?.fixture_id, 10);
+  const fixtureTitle = fixture ? getFixtureTitle(fixture) : `fixture ${fixtureId}`;
+  const betResult = Number.parseInt(order?.bet_result, 10);
+  const stake = Number(order?.odd_mount || 0);
+  const oddRate = Number(order?.odd_rate || 0);
+  const createdAt = toIsoString(now, new Date().toISOString());
+  const dedupeKey = `custom_event_bet_placed:${userName}:${eventId}:${orderId}`;
+
+  return buildNotificationRecord({
+    userName,
+    type: "custom_event_bet_placed",
+    title: `New bet on your custom odds for ${fixtureTitle}`,
+    body: `${bettorUserName} backed ${getPredictionResultLabel(
+      betResult
+    )} with ${stake.toFixed(2)} at ${oddRate.toFixed(2)}.`,
+    ctaPath: fixtureId ? `/?fixture=${fixtureId}` : "/user",
+    entityType: "custom_event",
+    entityId: eventId,
+    dedupeKey,
+    createdAt,
+    expiresAt: addDuration(createdAt, { days: ACTIVITY_EXPIRY_DAYS }),
+    priority: "normal",
+    metadata: {
+      event_id: eventId,
+      order_id: orderId,
+      bettor_user_name: bettorUserName,
+      fixture_id: fixtureId || null,
+      bet_result: Number.isInteger(betResult) ? betResult : null,
+      stake,
+      odd_rate: oddRate,
+    },
+  });
+};
+
+const buildCustomEventSettledNotification = ({ event, fixture = null, now = new Date() }) => {
+  const userName = typeof event?.created_by === "string" ? event.created_by : "";
+  const eventId = typeof event?.id === "string" ? event.id : "";
+  if (!userName || !eventId || userName === "ano") {
+    return null;
+  }
+
+  const settlementSummary =
+    event?.settlement_summary && typeof event.settlement_summary === "object"
+      ? event.settlement_summary
+      : null;
+  if (!settlementSummary || !settlementSummary.outcome) {
+    return null;
+  }
+
+  const fixtureId = Number.parseInt(event?.fixture_id, 10);
+  const fixtureTitle = fixture ? getFixtureTitle(fixture) : `fixture ${fixtureId}`;
+  const createdAt = toIsoString(now, new Date().toISOString());
+  const dedupeKey = `custom_event_settled:${userName}:${eventId}:${settlementSummary.outcome}`;
+  const ownerCredit = Number(settlementSummary.owner_credit || 0);
+
+  return buildNotificationRecord({
+    userName,
+    type: "custom_event_settled",
+    title: `Custom odds settled for ${fixtureTitle}`,
+    body:
+      settlementSummary.outcome === "void"
+        ? "Your custom odds market was voided and the reserved pool was released."
+        : `Your custom odds market settled. Owner credit: ${ownerCredit.toFixed(2)}.`,
+    ctaPath: fixtureId ? `/?fixture=${fixtureId}` : "/user",
+    entityType: "custom_event",
+    entityId: eventId,
+    dedupeKey,
+    createdAt,
+    expiresAt: addDuration(createdAt, { days: ACTIVITY_EXPIRY_DAYS }),
+    priority: ownerCredit > 0 ? "high" : "normal",
+    metadata: {
+      event_id: eventId,
+      fixture_id: fixtureId || null,
+      owner_credit: ownerCredit,
+      outcome: settlementSummary.outcome,
+      result:
+        settlementSummary.result !== undefined && settlementSummary.result !== null
+          ? Number(settlementSummary.result)
+          : null,
     },
   });
 };
@@ -412,11 +510,11 @@ const resolveAutoLockFixtureState = (fixture) => {
     return null;
   }
 
-  if (FINAL_FIXTURE_STATUSES.has(status)) {
-    return "finished";
-  }
   if (status === "PST" || status === "CANC") {
     return "canceled";
+  }
+  if (FINAL_FIXTURE_STATUSES.has(status)) {
+    return "finished";
   }
   return "ongoing";
 };
@@ -492,6 +590,8 @@ module.exports = {
   READ_STATUS,
   UNREAD_STATUS,
   addDuration,
+  buildCustomEventBetPlacedNotification,
+  buildCustomEventSettledNotification,
   buildCustomEventStatusNotification,
   buildFixtureKickoffNotification,
   buildNotificationRecord,

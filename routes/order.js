@@ -23,6 +23,8 @@ const getOrdersContainer = () => {
   };
 };
 
+const escapeCosmosString = (value) => String(value).replace(/"/g, '\\"');
+
 const normalizeSelection = (selection, fallbackFixtureState) => ({
   fixture_id: selection.fixture_id,
   bet_result: parseInt(selection.bet_result, 10),
@@ -52,6 +54,9 @@ const normalizeOrderPayload = (postData) => {
         postData.order_type || (selections.length > 1 ? "accumulator" : "single"),
       selection_count: selections.length,
       user_name: postData.user_name,
+      order_source: postData.order_source || "standard",
+      custom_event_id: postData.custom_event_id || null,
+      counterparty_user_name: postData.counterparty_user_name || null,
     };
   }
 
@@ -78,6 +83,9 @@ const normalizeOrderPayload = (postData) => {
     order_type: postData.order_type || "single",
     selection_count: postData.selection_count || 1,
     user_name: postData.user_name,
+    order_source: postData.order_source || "standard",
+    custom_event_id: postData.custom_event_id || null,
+    counterparty_user_name: postData.counterparty_user_name || null,
   };
 };
 
@@ -93,17 +101,41 @@ router.post("/orders", async function (req, res, next) {
   const { container } = getOrdersContainer();
   let postData = req.body || {};
   let filters = ["1 = 1"];
+  const normalizedIds = Array.isArray(postData.ids)
+    ? postData.ids
+        .filter((id) => typeof id === "string" && id.length > 0)
+        .map((id) => escapeCosmosString(id))
+    : [];
+  const normalizedCustomEventIds = Array.isArray(postData.custom_event_ids)
+    ? postData.custom_event_ids
+        .filter((id) => typeof id === "string" && id.length > 0)
+        .map((id) => escapeCosmosString(id))
+    : [];
 
-  if (postData.ids && postData.ids.length > 0) {
-    filters.push(`c.id IN ("${postData.ids.join('","')}")`);
+  if (normalizedIds.length > 0) {
+    filters.push(`c.id IN ("${normalizedIds.join('","')}")`);
   }
 
   if (postData.state) {
-    filters.push(`c.state = "${postData.state}"`);
+    filters.push(`c.state = "${escapeCosmosString(postData.state)}"`);
   }
 
   if (postData.created_by) {
-    filters.push(`c.created_by = "${postData.created_by}"`);
+    filters.push(`c.created_by = "${escapeCosmosString(postData.created_by)}"`);
+  }
+  if (postData.order_source) {
+    filters.push(`c.order_source = "${escapeCosmosString(postData.order_source)}"`);
+  }
+  if (postData.custom_event_id) {
+    filters.push(`c.custom_event_id = "${escapeCosmosString(postData.custom_event_id)}"`);
+  }
+  if (normalizedCustomEventIds.length > 0) {
+    filters.push(`c.custom_event_id IN ("${normalizedCustomEventIds.join('","')}")`);
+  }
+  if (postData.counterparty_user_name) {
+    filters.push(
+      `c.counterparty_user_name = "${escapeCosmosString(postData.counterparty_user_name)}"`
+    );
   }
 
   let query = {
@@ -140,12 +172,15 @@ router.post("/", async function (req, res, next) {
     order_type: normalizedOrder.order_type,
     selection_count: normalizedOrder.selection_count,
     selections: normalizedOrder.selections,
+    order_source: normalizedOrder.order_source || "standard",
+    custom_event_id: normalizedOrder.custom_event_id || null,
+    counterparty_user_name: normalizedOrder.counterparty_user_name || null,
   };
 
   var orderCreateResult = await container.items.create(orderToCreate);
   var orderData = orderCreateResult.resource;
 
-  if (!normalizedOrder.user_name) {
+  if (!normalizedOrder.user_name || orderToCreate.order_source === "custom_event") {
     return res.status(200).send(orderData);
   }
 
