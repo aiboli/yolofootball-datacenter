@@ -1,7 +1,10 @@
 const nodeCron = require("node-cron");
 const helper = require("../common/helper");
 const CosmosClient = require("@azure/cosmos").CosmosClient;
-const { requestWithApiUsage } = require("../common/apiUsage");
+const {
+  getPacificDateString,
+  requestWithApiUsage,
+} = require("../common/apiUsage");
 const { createNotificationRepository } = require("../common/notificationRepository");
 const {
   SUPPORTED_LEAGUES,
@@ -34,7 +37,11 @@ const API_FOOTBALL_HOST = "api-football-v1.p.rapidapi.com";
 const API_FOOTBALL_KEY = "28fc80e178mshdff1cc6efb6539cp119f94jsn1a2811635bf8";
 const ODDS_BOOKMAKER_ID = "8";
 const API_FOOTBALL_PROVIDER = "api-football";
+const API_FOOTBALL_TIMEZONE = "America/Los_Angeles";
+const ODDS_LOOKAHEAD_DAYS = 14;
+const API_REQUEST_DELAY_MS = 1200;
 const SUPPORTED_LEAGUE_CACHE_TTL_MS = 24 * 60 * 60 * 1000;
+const ODDS_ELIGIBLE_FIXTURE_STATUSES = new Set(["NS"]);
 const supportedLeagueCache = {
   fetchedAt: 0,
   currentLeagues: [],
@@ -252,12 +259,7 @@ const allOddsRequest = nodeCron.schedule(
   // "20 19 * * * *", test time
   async function jobYouNeedToExecute() {
     try {
-      const supportedLeagues = await resolveSupportedLeagues();
-      if (supportedLeagues.length === 0) {
-        console.log("no supported leagues resolved for odds ingestion");
-        return;
-      }
-      await prepareAllOddsData(supportedLeagues, oddsContainer);
+      await prepareUpcomingOddsData(leaguesContainer, oddsContainer);
     } catch (error) {
       console.log("failed to prepare all odds data");
       console.log(error);
@@ -453,7 +455,11 @@ async function upsertLeagueFixturesData(databaseContainer, leagueResult) {
   }
 }
 
-async function upsertLeagueOddsData(databaseContainer, oddsResult) {
+async function upsertLeagueOddsData(
+  databaseContainer,
+  oddsResult,
+  { allowEmptyReplace = false } = {}
+) {
   const oddsDataInDB = await databaseContainer.items
     .query(`SELECT * from c WHERE c.league = '${oddsResult.league}'`)
     .fetchAll();
@@ -470,12 +476,12 @@ async function upsertLeagueOddsData(databaseContainer, oddsResult) {
 
   if (oddsDataInDB.resources.length === 1) {
     const currentData = oddsDataInDB.resources[0];
-    if (oddsResult.odds.length === 0) {
+    if (oddsResult.odds.length === 0 && !allowEmptyReplace) {
       console.log("skip replacing odds snapshot with empty response", oddsResult.league);
       return;
     }
     currentData.odds = oddsResult.odds;
-    currentData.season = oddsResult.season;
+    currentData.season = oddsResult.season || currentData.season;
     await databaseContainer.item(currentData.id, currentData.league).replace(currentData);
     console.log("replaceOddsResponse succeed");
   }
@@ -529,13 +535,106 @@ function getFixtureDataRequest(id, season) {
   return buildApiFootballRequest("/fixtures", { league: id, season: season });
 }
 
-function getOddsDataRequest(id, season, page = 1) {
+function getOddsByDateRequest(date, page = 1) {
   return buildApiFootballRequest("/odds", {
-    league: id,
-    page: page,
-    season: season,
+    date,
+    timezone: API_FOOTBALL_TIMEZONE,
     bookmaker: ODDS_BOOKMAKER_ID,
+    page,
   });
+}
+
+function delayRequest(ms = API_REQUEST_DELAY_MS) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function normalizeId(value) {
+  if (value === undefined || value === null) {
+    return null;
+  }
+
+  const normalizedValue = String(value).trim();
+  return normalizedValue.length > 0 ? normalizedValue : null;
+}
+
+function addDaysToDateString(dateString, days) {
+  const [year, month, day] = String(dateString)
+    .split("-")
+    .map((value) => Number.parseInt(value, 10));
+  const nextDate = new Date(Date.UTC(year, month - 1, day + days));
+  const nextYear = nextDate.getUTCFullYear();
+  const nextMonth = String(nextDate.getUTCMonth() + 1).padStart(2, "0");
+  const nextDay = String(nextDate.getUTCDate()).padStart(2, "0");
+
+  return `${nextYear}-${nextMonth}-${nextDay}`;
+}
+
+function getFixturePacificDate(fixtureEntry) {
+  const fixtureDate = fixtureEntry?.fixture?.date;
+  if (!fixtureDate) {
+    return null;
+  }
+
+  try {
+    return getPacificDateString(fixtureDate);
+  } catch (error) {
+    return null;
+  }
+}
+
+function collectUpcomingOddsTargets(
+  leagueDocuments,
+  { today = helper.getDateString(), lookaheadDays = ODDS_LOOKAHEAD_DAYS } = {}
+) {
+  const maxDate = addDaysToDateString(today, lookaheadDays);
+  const dates = new Set();
+  const targetsByLeague = {};
+
+  (Array.isArray(leagueDocuments) ? leagueDocuments : []).forEach((leagueDocument) => {
+    const leagueId = normalizeId(leagueDocument?.league);
+    if (!leagueId || !Array.isArray(leagueDocument?.fixtures)) {
+      return;
+    }
+
+    leagueDocument.fixtures.forEach((fixtureEntry) => {
+      const fixtureId = normalizeId(fixtureEntry?.fixture?.id);
+      const fixtureStatus = fixtureEntry?.fixture?.status?.short;
+      const fixtureDate = getFixturePacificDate(fixtureEntry);
+
+      if (
+        !fixtureId ||
+        !fixtureDate ||
+        !ODDS_ELIGIBLE_FIXTURE_STATUSES.has(fixtureStatus) ||
+        fixtureDate < today ||
+        fixtureDate > maxDate
+      ) {
+        return;
+      }
+
+      if (!targetsByLeague[leagueId]) {
+        targetsByLeague[leagueId] = {
+          league: leagueId,
+          season: normalizeId(leagueDocument?.season),
+          fixtureIds: new Set(),
+          dates: new Set(),
+        };
+      }
+
+      targetsByLeague[leagueId].fixtureIds.add(fixtureId);
+      targetsByLeague[leagueId].dates.add(fixtureDate);
+      dates.add(fixtureDate);
+    });
+  });
+
+  return {
+    dates: Array.from(dates).sort(),
+    leagues: Object.values(targetsByLeague).map((target) => ({
+      league: target.league,
+      season: target.season,
+      fixtureIds: Array.from(target.fixtureIds),
+      dates: Array.from(target.dates).sort(),
+    })),
+  };
 }
 
 async function prepareAllFixureData(leagues, databaseContainer) {
@@ -632,98 +731,141 @@ async function prepareAllGamesData(startPage, endPage) {
   return null;
 }
 
-async function prepareAllOddsData(leagues, databaseContainer) {
-  const delay = (ms = 1200) => new Promise((r) => setTimeout(r, ms));
-  const getInSeries = async (promises) => {
-    let results = [];
-    let count = 1;
-    for (let promise of promises) {
-      console.log("executing the request for odds", count++);
-      await delay();
-      try {
-        const request_result = await requestApiFootball(promise, "allOddsRequest");
-        if (
-          request_result &&
-          request_result.data &&
-          request_result.data.parameters
-        ) {
-          const oddsResult = {
-            league: request_result.data.parameters.league,
-            season: request_result.data.parameters.season,
-            odds: request_result.data.response,
-          };
-          const totalPage = request_result.data.paging.total;
-          if (totalPage == 1) {
-            await upsertLeagueOddsData(databaseContainer, oddsResult);
-          } else {
-            let multiplePagesResult = await prepareSubOddsData(
-              oddsResult.league,
-              oddsResult.season,
-              2,
-              totalPage
-            );
-            console.log(multiplePagesResult);
-            oddsResult.odds = oddsResult.odds.concat(multiplePagesResult);
-            await upsertLeagueOddsData(databaseContainer, oddsResult);
-          }
-        }
+async function fetchOddsForDate(date) {
+  let odds = [];
+  let currentPage = 1;
+  let totalPage = 1;
 
-        console.log("executing success for odds data:", count);
-        results.push(request_result?.data?.parameters?.league || null);
-      } catch (e) {
-        console.log("executing error odds data:", count);
-        console.log(e);
-      }
+  do {
+    await delayRequest();
+    const response = await requestApiFootball(
+      getOddsByDateRequest(date, currentPage),
+      "allOddsRequest"
+    );
+    if (hasApiFootballErrors(response?.data?.errors)) {
+      throw new Error(
+        `api-football odds error for ${date}: ${JSON.stringify(response.data.errors)}`
+      );
     }
-    return results;
-  };
-  const promises = leagues.map((id) => {
-    return getOddsDataRequest(id.id, id.season);
-  });
-  try {
-    console.log(promises);
-    const results = await getInSeries(promises);
-    return results;
-  } catch (e) {
-    console.log(e);
-    global.monitor.isTodayGameFetching = false;
-  }
-  return null;
+    const responseOdds = Array.isArray(response?.data?.response)
+      ? response.data.response
+      : [];
+    odds = odds.concat(responseOdds);
+    const parsedTotalPage = Number(response?.data?.paging?.total || 1);
+    totalPage = Number.isFinite(parsedTotalPage)
+      ? Math.max(1, parsedTotalPage)
+      : 1;
+    currentPage++;
+  } while (currentPage <= totalPage);
+
+  return odds;
 }
 
-async function prepareSubOddsData(league, season, start, end) {
-  const delay = (ms = 1200) => new Promise((r) => setTimeout(r, ms));
-  const getInSeries = async (promises) => {
-    let results = [];
-    let count = 1;
-    for (let promise of promises) {
-      console.log("executing the request for sub odds", count++);
-      await delay();
-      try {
-        const request_result = await requestApiFootball(promise, "allOddsRequest");
-        if (request_result.data && request_result.data.response) {
-          results = results.concat(request_result.data.response);
-        }
-        console.log("executing success for sub odds data:", count);
-      } catch (e) {
-        console.log("executing error sub odds:", count);
-        console.log(e);
-      }
+function groupOddsByLeague(oddsEntries, leagueTargets) {
+  const fixtureToLeague = {};
+  const groupedOdds = {};
+
+  leagueTargets.forEach((target) => {
+    groupedOdds[target.league] = {
+      league: target.league,
+      season: target.season,
+      odds: [],
+    };
+
+    target.fixtureIds.forEach((fixtureId) => {
+      fixtureToLeague[fixtureId] = target.league;
+    });
+  });
+
+  (Array.isArray(oddsEntries) ? oddsEntries : []).forEach((oddsEntry) => {
+    const fixtureId = normalizeId(oddsEntry?.fixture?.id);
+    const targetLeagueId = fixtureToLeague[fixtureId];
+    if (!targetLeagueId || !groupedOdds[targetLeagueId]) {
+      return;
     }
-    return results;
-  };
-  const pageArray = [];
-  for (let i = start; i <= end; i++) {
-    pageArray.push(getOddsDataRequest(league, season, i));
+
+    const oddsLeagueId = normalizeId(oddsEntry?.league?.id) || targetLeagueId;
+    if (oddsLeagueId !== targetLeagueId) {
+      return;
+    }
+
+    groupedOdds[targetLeagueId].season =
+      normalizeId(oddsEntry?.league?.season) || groupedOdds[targetLeagueId].season;
+    groupedOdds[targetLeagueId].odds.push(oddsEntry);
+  });
+
+  return Object.values(groupedOdds);
+}
+
+function hasApiFootballErrors(errors) {
+  if (!errors) {
+    return false;
   }
-  try {
-    const results = await getInSeries(pageArray);
-    return results;
-  } catch (e) {
-    console.log(e);
-    global.monitor.isTodayGameFetching = false;
+  if (Array.isArray(errors)) {
+    return errors.length > 0;
   }
-  return null;
+  if (typeof errors === "object") {
+    return Object.keys(errors).length > 0;
+  }
+
+  return Boolean(errors);
+}
+
+async function prepareUpcomingOddsData(leaguesContainer, databaseContainer) {
+  const leagueDocumentsResult = await leaguesContainer.items
+    .query("SELECT * FROM c")
+    .fetchAll();
+  const targets = collectUpcomingOddsTargets(leagueDocumentsResult.resources || []);
+
+  if (targets.dates.length === 0) {
+    console.log("no upcoming fixture dates resolved for odds ingestion");
+    return [];
+  }
+
+  console.log("odds ingestion target dates", targets.dates);
+  let allOddsEntries = [];
+  const failedDates = new Set();
+
+  for (const date of targets.dates) {
+    try {
+      const dateOdds = await fetchOddsForDate(date);
+      allOddsEntries = allOddsEntries.concat(dateOdds);
+      console.log("executing success for odds date:", date);
+    } catch (error) {
+      failedDates.add(date);
+      console.log("executing error odds date:", date);
+      console.log(error);
+    }
+  }
+
+  const leagueOddsResults = groupOddsByLeague(allOddsEntries, targets.leagues);
+  const targetsByLeague = targets.leagues.reduce((targetMap, target) => {
+    targetMap[target.league] = target;
+    return targetMap;
+  }, {});
+
+  for (const oddsResult of leagueOddsResults) {
+    const target = targetsByLeague[oddsResult.league];
+    const hasFailedTargetDate = (target?.dates || []).some((date) =>
+      failedDates.has(date)
+    );
+    if (hasFailedTargetDate) {
+      console.log("skip replacing odds snapshot due to failed target date", {
+        league: oddsResult.league,
+        failed_dates: Array.from(failedDates),
+      });
+      continue;
+    }
+
+    await upsertLeagueOddsData(databaseContainer, oddsResult, {
+      allowEmptyReplace: true,
+    });
+  }
+
+  console.log(
+    `updated odds data for ${leagueOddsResults.length} leagues from ${targets.dates.length} dates`
+  );
+  return leagueOddsResults;
 }
 
 function buildAllGamesData(originalCall, resultsArray) {
