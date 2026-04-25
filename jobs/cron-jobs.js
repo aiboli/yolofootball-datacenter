@@ -1,7 +1,7 @@
 const nodeCron = require("node-cron");
-const axios = require("axios").default;
 const helper = require("../common/helper");
 const CosmosClient = require("@azure/cosmos").CosmosClient;
+const { requestWithApiUsage } = require("../common/apiUsage");
 const { createNotificationRepository } = require("../common/notificationRepository");
 const {
   SUPPORTED_LEAGUES,
@@ -33,6 +33,7 @@ const API_FOOTBALL_BASE_URL = "https://api-football-v1.p.rapidapi.com/v3";
 const API_FOOTBALL_HOST = "api-football-v1.p.rapidapi.com";
 const API_FOOTBALL_KEY = "28fc80e178mshdff1cc6efb6539cp119f94jsn1a2811635bf8";
 const ODDS_BOOKMAKER_ID = "8";
+const API_FOOTBALL_PROVIDER = "api-football";
 const SUPPORTED_LEAGUE_CACHE_TTL_MS = 24 * 60 * 60 * 1000;
 const supportedLeagueCache = {
   fetchedAt: 0,
@@ -100,7 +101,7 @@ const allGamesRequest = nodeCron.schedule(
       };
       var response;
       try {
-        response = await axios.request(options);
+        response = await requestApiFootball(options, "allGamesRequest");
       } catch (e) {
         console.log(e);
         global.monitor.isTodayGameFetching = false;
@@ -144,7 +145,10 @@ const allGamesRequest = nodeCron.schedule(
             "28fc80e178mshdff1cc6efb6539cp119f94jsn1a2811635bf8",
         },
       };
-      var fixturesResponse = await axios.request(fixturesOptions);
+      var fixturesResponse = await requestApiFootball(
+        fixturesOptions,
+        "allGamesRequest"
+      );
       var fixturesObject = {
         date: fixturesResponse.data.parameters.date,
         fixtures: fixturesResponse.data.response,
@@ -172,7 +176,10 @@ const allGamesRequest = nodeCron.schedule(
             "28fc80e178mshdff1cc6efb6539cp119f94jsn1a2811635bf8",
         },
       };
-      var fixturesResponse = await axios.request(fixturesOptions);
+      var fixturesResponse = await requestApiFootball(
+        fixturesOptions,
+        "allGamesRequest"
+      );
       var fixturesObject = {
         date: fixturesResponse.data.parameters.date,
         fixtures: fixturesResponse.data.response,
@@ -299,6 +306,14 @@ function buildApiFootballRequest(path, params = {}) {
   };
 }
 
+function requestApiFootball(options, job) {
+  return requestWithApiUsage(options, {
+    provider: API_FOOTBALL_PROVIDER,
+    job,
+    source: "cron",
+  });
+}
+
 async function refreshSupportedLeagueReference(forceRefresh = false) {
   const cacheAge = Date.now() - supportedLeagueCache.fetchedAt;
   if (
@@ -310,8 +325,9 @@ async function refreshSupportedLeagueReference(forceRefresh = false) {
     return supportedLeagueCache.currentLeagues;
   }
 
-  const response = await axios.request(
-    buildApiFootballRequest("/leagues", { current: "true" })
+  const response = await requestApiFootball(
+    buildApiFootballRequest("/leagues", { current: "true" }),
+    "resolveSupportedLeagues"
   );
   const currentLeagues = Array.isArray(response?.data?.response)
     ? response.data.response
@@ -531,7 +547,7 @@ async function prepareAllFixureData(leagues, databaseContainer) {
       console.log("executing the request for leagues", count++);
       await delay();
       try {
-        const request_result = await axios.request(promise);
+        const request_result = await requestApiFootball(promise, "allDataRequest");
         const leagueResult = {
           league: request_result.data.parameters.league,
           fixtures: request_result.data.response,
@@ -574,7 +590,7 @@ async function prepareAllGamesData(startPage, endPage) {
       console.log("executing the request for pages", count++);
       await delay();
       try {
-        const request_result = await axios.request(promise);
+        const request_result = await requestApiFootball(promise, "allGamesRequest");
         results.push(request_result);
         console.log("executing success for all game data:", count);
       } catch (e) {
@@ -625,7 +641,7 @@ async function prepareAllOddsData(leagues, databaseContainer) {
       console.log("executing the request for odds", count++);
       await delay();
       try {
-        const request_result = await axios.request(promise);
+        const request_result = await requestApiFootball(promise, "allOddsRequest");
         if (
           request_result &&
           request_result.data &&
@@ -684,7 +700,7 @@ async function prepareSubOddsData(league, season, start, end) {
       console.log("executing the request for sub odds", count++);
       await delay();
       try {
-        const request_result = await axios.request(promise);
+        const request_result = await requestApiFootball(promise, "allOddsRequest");
         if (request_result.data && request_result.data.response) {
           results = results.concat(request_result.data.response);
         }

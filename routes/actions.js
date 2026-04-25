@@ -2,6 +2,11 @@ var express = require("express");
 var router = express.Router();
 const helper = require("../common/helper");
 const CosmosClient = require("@azure/cosmos").CosmosClient;
+const {
+  DEFAULT_PROVIDER,
+  getPacificDateString,
+  summarizeApiUsage,
+} = require("../common/apiUsage");
 const { filterSupportedLeagueEntries } = require("../common/supportedLeagues");
 
 const createDatabaseClient = (containerId) => {
@@ -131,6 +136,8 @@ const creditWinningUser = async (userContainer, userName, winReturn) => {
   }
 };
 
+const isDateString = (value) => /^\d{4}-\d{2}-\d{2}$/.test(String(value || ""));
+
 router.get("/getGames", async function (req, res, next) {
   const { container } = createDatabaseClient("games");
   let dates;
@@ -199,6 +206,21 @@ router.get("/prepareData", async function (req, res, next) {
   }
 
   return res.status(200).json(leagueFixtureMap);
+});
+
+router.get("/apiUsage", async function (req, res, next) {
+  try {
+    const date = req.query?.date || getPacificDateString();
+    if (!isDateString(date)) {
+      return res.status(400).json({ error: "date must use YYYY-MM-DD" });
+    }
+
+    const provider = req.query?.provider || DEFAULT_PROVIDER;
+    const summary = await summarizeApiUsage({ date, provider });
+    return res.status(200).json(summary);
+  } catch (error) {
+    return next(error);
+  }
 });
 
 router.post("/bulkUpdateOrder", async function (req, res, next) {
