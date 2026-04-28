@@ -5,6 +5,7 @@ var cookieParser = require("cookie-parser");
 var logger = require("morgan");
 var sassMiddleware = require("node-sass-middleware");
 var bodyParser = require("body-parser");
+var compression = require("compression");
 var JobsManager = require("./jobs/cron-jobs");
 
 var indexRouter = require("./routes/index");
@@ -32,6 +33,7 @@ app.set("views", path.join(__dirname, "views"));
 app.set("view engine", "ejs");
 
 app.use(logger("dev"));
+app.use(compression());
 app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
 app.use(bodyParser.json());
