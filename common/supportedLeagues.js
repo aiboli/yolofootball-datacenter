@@ -24,21 +24,21 @@ const SUPPORTED_LEAGUES = [
     country: "Italy",
     name: "Serie A",
   },
-  {
-    key: "j1-league",
-    country: "Japan",
-    name: "J1 League",
-  },
-  {
-    key: "k-league-1",
-    country: "South-Korea",
-    name: "K League 1",
-  },
-  {
-    key: "chinese-super-league",
-    country: "China",
-    name: "Super League",
-  },
+  // {
+  //   key: "j1-league",
+  //   country: "Japan",
+  //   name: "J1 League",
+  // },
+  // {
+  //   key: "k-league-1",
+  //   country: "South-Korea",
+  //   name: "K League 1",
+  // },
+  // {
+  //   key: "chinese-super-league",
+  //   country: "China",
+  //   name: "Super League",
+  // },
 ];
 
 const normalizeText = (value) =>
